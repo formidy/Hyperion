@@ -1,11 +1,8 @@
--- Hyperion UI Library v1.0
--- Fixed: Modal elements above all UI + Automatic style switching
-
 local HyperionUI = {}
 HyperionUI.__index = HyperionUI
 HyperionUI.DEBUG_MODE = false
+HyperionUI.VERSION = "1.1.0"
 
--- Services
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -15,7 +12,6 @@ local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
 
--- Constants
 local ZINDEX = {
     Base = 1,
     Sidebar = 10,
@@ -28,7 +24,10 @@ local ZINDEX = {
     Notification = 10000
 }
 
--- Theme Presets
+local function isMobile()
+    return UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+end
+
 local ThemePresets = {
     Dark = {
         bg1 = Color3.fromRGB(17, 17, 19),
@@ -93,10 +92,137 @@ local ThemePresets = {
         success = Color3.fromRGB(134, 239, 172),
         warning = Color3.fromRGB(253, 224, 71),
         error = Color3.fromRGB(252, 165, 165),
+    },
+    Ocean = {
+        bg1 = Color3.fromRGB(15, 23, 42),
+        bg2 = Color3.fromRGB(30, 41, 59),
+        bg3 = Color3.fromRGB(51, 65, 85),
+        bg4 = Color3.fromRGB(71, 85, 105),
+        bg5 = Color3.fromRGB(100, 116, 139),
+        primary = Color3.fromRGB(14, 165, 233),
+        secondary = Color3.fromRGB(6, 182, 212),
+        text1 = Color3.fromRGB(248, 250, 252),
+        text2 = Color3.fromRGB(203, 213, 225),
+        text3 = Color3.fromRGB(148, 163, 184),
+        border = Color3.fromRGB(51, 65, 85),
+        success = Color3.fromRGB(16, 185, 129),
+        warning = Color3.fromRGB(245, 158, 11),
+        error = Color3.fromRGB(239, 68, 68),
+    },
+    Forest = {
+        bg1 = Color3.fromRGB(20, 30, 20),
+        bg2 = Color3.fromRGB(30, 45, 30),
+        bg3 = Color3.fromRGB(40, 60, 40),
+        bg4 = Color3.fromRGB(50, 75, 50),
+        bg5 = Color3.fromRGB(60, 90, 60),
+        primary = Color3.fromRGB(34, 197, 94),
+        secondary = Color3.fromRGB(74, 222, 128),
+        text1 = Color3.fromRGB(240, 253, 244),
+        text2 = Color3.fromRGB(187, 247, 208),
+        text3 = Color3.fromRGB(134, 239, 172),
+        border = Color3.fromRGB(22, 101, 52),
+        success = Color3.fromRGB(74, 222, 128),
+        warning = Color3.fromRGB(250, 204, 21),
+        error = Color3.fromRGB(248, 113, 113),
+    },
+    Sunset = {
+        bg1 = Color3.fromRGB(30, 15, 15),
+        bg2 = Color3.fromRGB(45, 25, 25),
+        bg3 = Color3.fromRGB(60, 35, 35),
+        bg4 = Color3.fromRGB(75, 45, 45),
+        bg5 = Color3.fromRGB(90, 55, 55),
+        primary = Color3.fromRGB(251, 146, 60),
+        secondary = Color3.fromRGB(251, 113, 133),
+        text1 = Color3.fromRGB(254, 242, 242),
+        text2 = Color3.fromRGB(254, 205, 211),
+        text3 = Color3.fromRGB(252, 165, 165),
+        border = Color3.fromRGB(127, 29, 29),
+        success = Color3.fromRGB(74, 222, 128),
+        warning = Color3.fromRGB(251, 191, 36),
+        error = Color3.fromRGB(248, 113, 113),
+    },
+    Dracula = {
+        bg1 = Color3.fromRGB(40, 42, 54),
+        bg2 = Color3.fromRGB(68, 71, 90),
+        bg3 = Color3.fromRGB(98, 114, 164),
+        bg4 = Color3.fromRGB(139, 148, 188),
+        bg5 = Color3.fromRGB(189, 147, 249),
+        primary = Color3.fromRGB(189, 147, 249),
+        secondary = Color3.fromRGB(255, 121, 198),
+        text1 = Color3.fromRGB(248, 248, 242),
+        text2 = Color3.fromRGB(241, 250, 140),
+        text3 = Color3.fromRGB(139, 233, 253),
+        border = Color3.fromRGB(68, 71, 90),
+        success = Color3.fromRGB(80, 250, 123),
+        warning = Color3.fromRGB(241, 250, 140),
+        error = Color3.fromRGB(255, 85, 85),
+    },
+    Nord = {
+        bg1 = Color3.fromRGB(46, 52, 64),
+        bg2 = Color3.fromRGB(59, 66, 82),
+        bg3 = Color3.fromRGB(67, 76, 94),
+        bg4 = Color3.fromRGB(76, 86, 106),
+        bg5 = Color3.fromRGB(94, 129, 172),
+        primary = Color3.fromRGB(136, 192, 208),
+        secondary = Color3.fromRGB(129, 161, 193),
+        text1 = Color3.fromRGB(236, 239, 244),
+        text2 = Color3.fromRGB(229, 233, 240),
+        text3 = Color3.fromRGB(216, 222, 233),
+        border = Color3.fromRGB(76, 86, 106),
+        success = Color3.fromRGB(163, 190, 140),
+        warning = Color3.fromRGB(235, 203, 139),
+        error = Color3.fromRGB(191, 97, 106),
+    },
+    Monokai = {
+        bg1 = Color3.fromRGB(39, 40, 34),
+        bg2 = Color3.fromRGB(49, 51, 45),
+        bg3 = Color3.fromRGB(73, 72, 62),
+        bg4 = Color3.fromRGB(102, 102, 93),
+        bg5 = Color3.fromRGB(117, 113, 94),
+        primary = Color3.fromRGB(249, 38, 114),
+        secondary = Color3.fromRGB(174, 129, 255),
+        text1 = Color3.fromRGB(248, 248, 240),
+        text2 = Color3.fromRGB(230, 219, 116),
+        text3 = Color3.fromRGB(117, 113, 94),
+        border = Color3.fromRGB(73, 72, 62),
+        success = Color3.fromRGB(166, 226, 46),
+        warning = Color3.fromRGB(230, 219, 116),
+        error = Color3.fromRGB(249, 38, 114),
+    },
+    Gruvbox = {
+        bg1 = Color3.fromRGB(40, 40, 40),
+        bg2 = Color3.fromRGB(60, 56, 54),
+        bg3 = Color3.fromRGB(80, 73, 69),
+        bg4 = Color3.fromRGB(102, 92, 84),
+        bg5 = Color3.fromRGB(124, 111, 100),
+        primary = Color3.fromRGB(251, 184, 108),
+        secondary = Color3.fromRGB(254, 128, 25),
+        text1 = Color3.fromRGB(251, 241, 199),
+        text2 = Color3.fromRGB(235, 219, 178),
+        text3 = Color3.fromRGB(213, 196, 161),
+        border = Color3.fromRGB(80, 73, 69),
+        success = Color3.fromRGB(184, 187, 38),
+        warning = Color3.fromRGB(250, 189, 47),
+        error = Color3.fromRGB(251, 73, 52),
+    },
+    Catppuccin = {
+        bg1 = Color3.fromRGB(30, 30, 46),
+        bg2 = Color3.fromRGB(36, 39, 58),
+        bg3 = Color3.fromRGB(49, 50, 68),
+        bg4 = Color3.fromRGB(69, 71, 90),
+        bg5 = Color3.fromRGB(88, 91, 112),
+        primary = Color3.fromRGB(203, 166, 247),
+        secondary = Color3.fromRGB(245, 194, 231),
+        text1 = Color3.fromRGB(205, 214, 244),
+        text2 = Color3.fromRGB(186, 194, 222),
+        text3 = Color3.fromRGB(166, 173, 200),
+        border = Color3.fromRGB(69, 71, 90),
+        success = Color3.fromRGB(166, 227, 161),
+        warning = Color3.fromRGB(249, 226, 175),
+        error = Color3.fromRGB(243, 139, 168),
     }
 }
 
--- Style Presets
 local StylePresets = {
     Modern = {
         type = "sidebar",
@@ -112,7 +238,9 @@ local StylePresets = {
         fontTitle = Enum.Font.GothamBold,
         fontBody = Enum.Font.GothamMedium,
         fontMono = Enum.Font.RobotoMono,
-        mainSize = UDim2.new(0, 920, 0, 580)
+        mainSize = UDim2.new(0, 920, 0, 580),
+        animationSpeed = 0.2,
+        shadowEnabled = true
     },
     Compact = {
         type = "sidebar",
@@ -128,7 +256,9 @@ local StylePresets = {
         fontTitle = Enum.Font.GothamBold,
         fontBody = Enum.Font.Gotham,
         fontMono = Enum.Font.Code,
-        mainSize = UDim2.new(0, 800, 0, 500)
+        mainSize = UDim2.new(0, 800, 0, 500),
+        animationSpeed = 0.15,
+        shadowEnabled = false
     },
     Minimal = {
         type = "topbar",
@@ -144,7 +274,9 @@ local StylePresets = {
         fontTitle = Enum.Font.GothamBold,
         fontBody = Enum.Font.Gotham,
         fontMono = Enum.Font.Code,
-        mainSize = UDim2.new(0, 850, 0, 550)
+        mainSize = UDim2.new(0, 850, 0, 550),
+        animationSpeed = 0.2,
+        shadowEnabled = false
     },
     Glass = {
         type = "sidebar",
@@ -161,11 +293,86 @@ local StylePresets = {
         fontBody = Enum.Font.GothamMedium,
         fontMono = Enum.Font.Code,
         mainSize = UDim2.new(0, 950, 0, 600),
-        transparency = 0.1
+        animationSpeed = 0.25,
+        transparency = 0.1,
+        shadowEnabled = true
+    },
+    Mobile = {
+        type = "sidebar",
+        sidebarWidth = 180,
+        topBarHeight = 70,
+        cornerRadius = 12,
+        buttonHeight = 52,
+        spacing = 16,
+        padding = 20,
+        borderWidth = 2,
+        sidebarPosition = "left",
+        contentPadding = 28,
+        fontTitle = Enum.Font.GothamBold,
+        fontBody = Enum.Font.GothamMedium,
+        fontMono = Enum.Font.RobotoMono,
+        mainSize = UDim2.new(0.95, 0, 0.9, 0),
+        animationSpeed = 0.3,
+        shadowEnabled = true,
+        touchOptimized = true
+    },
+    Classic = {
+        type = "sidebar",
+        sidebarWidth = 180,
+        topBarHeight = 50,
+        cornerRadius = 4,
+        buttonHeight = 38,
+        spacing = 10,
+        padding = 14,
+        borderWidth = 2,
+        sidebarPosition = "left",
+        contentPadding = 18,
+        fontTitle = Enum.Font.SourceSansBold,
+        fontBody = Enum.Font.SourceSans,
+        fontMono = Enum.Font.Code,
+        mainSize = UDim2.new(0, 800, 0, 520),
+        animationSpeed = 0.1,
+        shadowEnabled = false
+    },
+    Flat = {
+        type = "sidebar",
+        sidebarWidth = 190,
+        topBarHeight = 55,
+        cornerRadius = 0,
+        buttonHeight = 40,
+        spacing = 8,
+        padding = 15,
+        borderWidth = 1,
+        sidebarPosition = "left",
+        contentPadding = 20,
+        fontTitle = Enum.Font.GothamBold,
+        fontBody = Enum.Font.Gotham,
+        fontMono = Enum.Font.Code,
+        mainSize = UDim2.new(0, 880, 0, 560),
+        animationSpeed = 0.15,
+        shadowEnabled = false
+    },
+    Neumorphic = {
+        type = "sidebar",
+        sidebarWidth = 210,
+        topBarHeight = 65,
+        cornerRadius = 20,
+        buttonHeight = 46,
+        spacing = 14,
+        padding = 18,
+        borderWidth = 0,
+        sidebarPosition = "left",
+        contentPadding = 24,
+        fontTitle = Enum.Font.GothamBold,
+        fontBody = Enum.Font.GothamMedium,
+        fontMono = Enum.Font.RobotoMono,
+        mainSize = UDim2.new(0, 940, 0, 590),
+        animationSpeed = 0.25,
+        shadowEnabled = true,
+        softShadow = true
     }
 }
 
--- Utility Functions
 local function debugPrint(...)
     if HyperionUI.DEBUG_MODE then
         print("[HyperionUI DEBUG]", ...)
@@ -192,7 +399,51 @@ local function deepCopy(original)
     return copy
 end
 
--- Theme Manager
+local Signal = {}
+Signal.__index = Signal
+
+function Signal.new()
+    local self = setmetatable({}, Signal)
+    self.connections = {}
+    return self
+end
+
+function Signal:Connect(callback)
+    local connection = {
+        callback = callback,
+        connected = true
+    }
+    
+    table.insert(self.connections, connection)
+    
+    return {
+        Disconnect = function()
+            connection.connected = false
+            for i, conn in ipairs(self.connections) do
+                if conn == connection then
+                    table.remove(self.connections, i)
+                    break
+                end
+            end
+        end
+    }
+end
+
+function Signal:Fire(...)
+    for _, connection in ipairs(self.connections) do
+        if connection.connected then
+            safeCall(connection.callback, ...)
+        end
+    end
+end
+
+function Signal:DisconnectAll()
+    for _, connection in ipairs(self.connections) do
+        connection.connected = false
+    end
+    self.connections = {}
+end
+
 local ThemeManager = {}
 ThemeManager.__index = ThemeManager
 
@@ -201,6 +452,7 @@ function ThemeManager.new(presetName)
     self.currentPreset = presetName or "Dark"
     self.colors = deepCopy(ThemePresets[self.currentPreset] or ThemePresets.Dark)
     self.trackedObjects = {}
+    self.customColors = {}
     return self
 end
 
@@ -208,6 +460,9 @@ function ThemeManager:SetPreset(presetName)
     if ThemePresets[presetName] then
         self.currentPreset = presetName
         self.colors = deepCopy(ThemePresets[presetName])
+        for key, value in pairs(self.customColors) do
+            self.colors[key] = value
+        end
         self:UpdateAll()
         return true
     end
@@ -215,12 +470,19 @@ function ThemeManager:SetPreset(presetName)
 end
 
 function ThemeManager:SetColor(colorKey, color)
-    if self.colors[colorKey] then
-        self.colors[colorKey] = color
-        self:UpdateAll()
-        return true
-    end
-    return false
+    self.customColors[colorKey] = color
+    self.colors[colorKey] = color
+    self:UpdateAll()
+    return self
+end
+
+function ThemeManager:GetColor(colorKey)
+    return self.colors[colorKey]
+end
+
+function ThemeManager:CreateCustomTheme(name, colors)
+    ThemePresets[name] = deepCopy(colors)
+    return self
 end
 
 function ThemeManager:Track(object, property, colorKey, isGradient)
@@ -254,7 +516,6 @@ function ThemeManager:UpdateAll()
     end
 end
 
--- Component Base Class
 local Component = {}
 Component.__index = Component
 
@@ -267,12 +528,49 @@ function Component.new(parent, theme, style, window)
     self.instance = nil
     self.destroyed = false
     self.modalElements = {}
+    self.enabled = true
+    self.visible = true
+    self.tooltip = nil
+    
+    self.Changed = Signal.new()
+    self.Destroyed = Signal.new()
+    
+    return self
+end
+
+function Component:SetEnabled(enabled)
+    self.enabled = enabled
+    if self.instance then
+        self.instance.Visible = enabled and self.visible
+    end
+    return self
+end
+
+function Component:SetVisible(visible)
+    self.visible = visible
+    if self.instance then
+        self.instance.Visible = visible and self.enabled
+    end
+    return self
+end
+
+function Component:SetTooltip(text)
+    self.tooltip = text
+    return self
+end
+
+function Component:OnChange(callback)
+    self.Changed:Connect(callback)
     return self
 end
 
 function Component:Destroy()
     if not self.destroyed then
         self.destroyed = true
+        self.Destroyed:Fire()
+        self.Changed:DisconnectAll()
+        self.Destroyed:DisconnectAll()
+        
         safeCall(function()
             for _, modal in ipairs(self.modalElements) do
                 if modal and modal.Parent then
@@ -286,7 +584,6 @@ function Component:Destroy()
     end
 end
 
--- Toggle Component
 local Toggle = setmetatable({}, {__index = Component})
 Toggle.__index = Toggle
 
@@ -370,15 +667,21 @@ function Toggle:Create()
         self:Toggle()
     end)
     
+    if isMobile() then
+        button.TouchTap:Connect(function()
+            self:Toggle()
+        end)
+    end
+    
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
 end
@@ -387,27 +690,34 @@ function Toggle:Toggle()
     self.value = not self.value
     
     safeCall(function()
-        TweenService:Create(self.switch, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        TweenService:Create(self.switch, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad), {
             BackgroundColor3 = self.value and self.theme.colors.primary or self.theme.colors.border
         }):Play()
         
-        TweenService:Create(self.knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        TweenService:Create(self.knob, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad), {
             Position = self.value and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
         }):Play()
         
         if self.callback then
             self.callback(self.value)
         end
+        self.Changed:Fire(self.value)
     end)
+    
+    return self
 end
 
 function Toggle:SetValue(value)
     if value ~= self.value then
         self:Toggle()
     end
+    return self
 end
 
--- Slider Component
+function Toggle:GetValue()
+    return self.value
+end
+
 local Slider = setmetatable({}, {__index = Component})
 Slider.__index = Slider
 
@@ -547,44 +857,45 @@ function Slider:Create()
             if self.callback then
                 self.callback(value)
             end
+            self.Changed:Fire(value)
         end)
     end
     
     track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             update(input)
             safeCall(function()
-                TweenService:Create(thumb, TweenInfo.new(0.2), {Size = UDim2.new(0, 18, 0, 18)}):Play()
+                TweenService:Create(thumb, TweenInfo.new(self.style.animationSpeed), {Size = UDim2.new(0, 18, 0, 18)}):Play()
             end)
         end
     end)
     
     track.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
             safeCall(function()
-                TweenService:Create(thumb, TweenInfo.new(0.2), {Size = UDim2.new(0, 14, 0, 14)}):Play()
+                TweenService:Create(thumb, TweenInfo.new(self.style.animationSpeed), {Size = UDim2.new(0, 14, 0, 14)}):Play()
             end)
         end
     end)
     
     UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             update(input)
         end
     end)
     
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         if not dragging then
             safeCall(function()
-                TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+                TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
             end)
         end
     end)
@@ -604,9 +915,26 @@ function Slider:SetValue(value)
         self.thumb.Position = UDim2.new(norm, -7, 0.5, -7)
         self.valueLabel.Text = tostring(value)
     end)
+    
+    return self
 end
 
--- Button Component
+function Slider:GetValue()
+    return self.value
+end
+
+function Slider:SetMin(min)
+    self.min = min
+    self:SetValue(self.value)
+    return self
+end
+
+function Slider:SetMax(max)
+    self.max = max
+    self:SetValue(self.value)
+    return self
+end
+
 local Button = setmetatable({}, {__index = Component})
 Button.__index = Button
 
@@ -615,6 +943,7 @@ function Button.new(parent, theme, style, window, text, callback, color)
     self.text = text
     self.callback = callback
     self.color = color
+    self.Clicked = Signal.new()
     self:Create()
     return self
 end
@@ -642,8 +971,6 @@ function Button:Create()
     corner.CornerRadius = UDim.new(0, self.style.cornerRadius)
     corner.Parent = button
     
-    local originalColor = button.BackgroundColor3
-    
     button.MouseButton1Click:Connect(function()
         safeCall(function()
             TweenService:Create(button, TweenInfo.new(0.1), {
@@ -657,8 +984,20 @@ function Button:Create()
             if self.callback then
                 self.callback()
             end
+            self.Clicked:Fire()
+            self.Changed:Fire()
         end)
     end)
+    
+    if isMobile() then
+        button.TouchTap:Connect(function()
+            if self.callback then
+                self.callback()
+            end
+            self.Clicked:Fire()
+            self.Changed:Fire()
+        end)
+    end
     
     button.MouseEnter:Connect(function()
         safeCall(function()
@@ -668,18 +1007,29 @@ function Button:Create()
                 math.min(current.G + 0.05, 1),
                 math.min(current.B + 0.05, 1)
             )
-            TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play()
+            TweenService:Create(button, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = hoverColor}):Play()
         end)
     end)
     
     button.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = self.color or self.theme.colors.primary}):Play()
+            TweenService:Create(button, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.color or self.theme.colors.primary}):Play()
         end)
     end)
 end
 
--- Dropdown Component
+function Button:SetText(text)
+    self.text = text
+    if self.instance then
+        self.instance.Text = text
+    end
+    return self
+end
+
+function Button:GetText()
+    return self.text
+end
+
 local Dropdown = setmetatable({}, {__index = Component})
 Dropdown.__index = Dropdown
 
@@ -769,7 +1119,6 @@ function Dropdown:Create()
     self.theme:Track(arrow, "TextColor3", "text3")
     self.arrow = arrow
     
-    -- Create dropdown list parented to ScreenGui for proper ZIndex
     local list = Instance.new("ScrollingFrame")
     list.Size = UDim2.new(0, 0, 0, math.min(#self.options * 36, 180))
     list.BackgroundColor3 = self.theme.colors.bg2
@@ -779,7 +1128,7 @@ function Dropdown:Create()
     list.ScrollBarThickness = 4
     list.ScrollBarImageColor3 = self.theme.colors.text3
     list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
-    list.Parent = self.window.gui  -- Parent to ScreenGui!
+    list.Parent = self.window.gui
     
     self.theme:Track(list, "BackgroundColor3", "bg2")
     self.list = list
@@ -833,27 +1182,40 @@ function Dropdown:Create()
                 self.value = option
                 selectedLabel.Text = option
                 list.Visible = false
-                TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = 0}):Play()
+                TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
                 if self.callback then
                     self.callback(option)
                 end
+                self.Changed:Fire(option)
             end)
         end)
         
+        if isMobile() then
+            optBtn.TouchTap:Connect(function()
+                self.value = option
+                selectedLabel.Text = option
+                list.Visible = false
+                TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
+                if self.callback then
+                    self.callback(option)
+                end
+                self.Changed:Fire(option)
+            end)
+        end
+        
         optBtn.MouseEnter:Connect(function()
             safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
             end)
         end)
         
         optBtn.MouseLeave:Connect(function()
             safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg2}):Play()
+                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg2}):Play()
             end)
         end)
     end
     
-    -- Update position when shown
     local function updateListPosition()
         safeCall(function()
             local absPos = selected.AbsolutePosition
@@ -870,37 +1232,47 @@ function Dropdown:Create()
                 updateListPosition()
             end
             local rotation = list.Visible and 180 or 0
-            TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = rotation}):Play()
+            TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = rotation}):Play()
         end)
     end)
     
+    if isMobile() then
+        selected.TouchTap:Connect(function()
+            list.Visible = not list.Visible
+            if list.Visible then
+                updateListPosition()
+            end
+            local rotation = list.Visible and 180 or 0
+            TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = rotation}):Play()
+        end)
+    end
+    
     selected.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(selected, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg5}):Play()
+            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg5}):Play()
         end)
     end)
     
     selected.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(selected, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
     
-    -- Close dropdown when clicking outside
     self.window.gui.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local mousePos = UserInputService:GetMouseLocation()
             local listPos = list.AbsolutePosition
             local listSize = list.AbsoluteSize
@@ -913,7 +1285,7 @@ function Dropdown:Create()
                 if not (mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
                        mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y) then
                     list.Visible = false
-                    TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = 0}):Play()
+                    TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
                 end
             end
         end
@@ -927,13 +1299,25 @@ function Dropdown:SetValue(value)
             safeCall(function()
                 self.selectedLabel.Text = value
             end)
-            return true
+            return self
         end
     end
-    return false
+    return self
 end
 
--- ColorPicker Component
+function Dropdown:GetValue()
+    return self.value
+end
+
+function Dropdown:SetOptions(options)
+    self.options = options
+    return self
+end
+
+function Dropdown:GetOptions()
+    return self.options
+end
+
 local ColorPicker = setmetatable({}, {__index = Component})
 ColorPicker.__index = ColorPicker
 
@@ -998,14 +1382,13 @@ function ColorPicker:Create()
     
     self.theme:Track(previewStroke, "Color", "border")
     
-    -- Create picker frame parented to ScreenGui for proper ZIndex
     local pickerFrame = Instance.new("Frame")
     pickerFrame.Size = UDim2.new(0, 240, 0, 200)
     pickerFrame.BackgroundColor3 = self.theme.colors.bg2
     pickerFrame.BorderSizePixel = 0
     pickerFrame.Visible = false
     pickerFrame.ZIndex = ZINDEX.ColorPicker
-    pickerFrame.Parent = self.window.gui  -- Parent to ScreenGui!
+    pickerFrame.Parent = self.window.gui
     
     self.theme:Track(pickerFrame, "BackgroundColor3", "bg2")
     self.pickerFrame = pickerFrame
@@ -1073,7 +1456,7 @@ function ColorPicker:Create()
     local whiteGradient = Instance.new("UIGradient")
     whiteGradient.Transparency = NumberSequence.new{
         NumberSequenceKeypoint.new(0, 0),
-        ColorSequenceKeypoint.new(1, 1)
+        NumberSequenceKeypoint.new(1, 1)
     }
     whiteGradient.Parent = whiteMask
     
@@ -1105,11 +1488,12 @@ function ColorPicker:Create()
             if self.callback then
                 self.callback(newColor)
             end
+            self.Changed:Fire(newColor)
         end)
     end
     
     hueSlider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local function update(input)
                 safeCall(function()
                     local pos = math.clamp((input.Position.X - hueSlider.AbsolutePosition.X) / hueSlider.AbsoluteSize.X, 0, 1)
@@ -1126,7 +1510,7 @@ function ColorPicker:Create()
             end)
             local moveConnection
             moveConnection = UserInputService.InputChanged:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseMovement then
+                if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
                     update(input2)
                 end
             end)
@@ -1139,7 +1523,7 @@ function ColorPicker:Create()
     end)
     
     satValPicker.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local function update(input)
                 safeCall(function()
                     local posX = math.clamp((input.Position.X - satValPicker.AbsolutePosition.X) / satValPicker.AbsoluteSize.X, 0, 1)
@@ -1158,7 +1542,7 @@ function ColorPicker:Create()
             end)
             local moveConnection
             moveConnection = UserInputService.InputChanged:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseMovement then
+                if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
                     update(input2)
                 end
             end)
@@ -1170,7 +1554,6 @@ function ColorPicker:Create()
         end
     end)
     
-    -- Update position when shown
     local function updatePickerPosition()
         safeCall(function()
             local absPos = colorPreview.AbsolutePosition
@@ -1188,33 +1571,41 @@ function ColorPicker:Create()
         end)
     end)
     
+    if isMobile() then
+        colorPreview.TouchTap:Connect(function()
+            pickerFrame.Visible = not pickerFrame.Visible
+            if pickerFrame.Visible then
+                updatePickerPosition()
+            end
+        end)
+    end
+    
     colorPreview.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(previewStroke, TweenInfo.new(0.2), {Color = self.theme.colors.primary}):Play()
+            TweenService:Create(previewStroke, TweenInfo.new(self.style.animationSpeed), {Color = self.theme.colors.primary}):Play()
         end)
     end)
     
     colorPreview.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(previewStroke, TweenInfo.new(0.2), {Color = self.theme.colors.border}):Play()
+            TweenService:Create(previewStroke, TweenInfo.new(self.style.animationSpeed), {Color = self.theme.colors.border}):Play()
         end)
     end)
     
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
     
-    -- Close picker when clicking outside
     self.window.gui.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local mousePos = UserInputService:GetMouseLocation()
             local pickerPos = pickerFrame.AbsolutePosition
             local pickerSize = pickerFrame.AbsoluteSize
@@ -1240,9 +1631,13 @@ function ColorPicker:SetValue(color)
         self.colorPreview.BackgroundColor3 = color
         self.satValPicker.BackgroundColor3 = Color3.fromHSV(self.h, 1, 1)
     end)
+    return self
 end
 
--- TextBox Component
+function ColorPicker:GetValue()
+    return self.value
+end
+
 local TextBox = setmetatable({}, {__index = Component})
 TextBox.__index = TextBox
 
@@ -1321,27 +1716,25 @@ function TextBox:Create()
             if self.callback then
                 self.callback(textBox.Text)
             end
+            self.Changed:Fire(textBox.Text)
         end)
     end)
     
     textBox:GetPropertyChangedSignal("Text"):Connect(function()
         safeCall(function()
             self.value = textBox.Text
-            if self.callback then
-                self.callback(textBox.Text)
-            end
         end)
     end)
     
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
 end
@@ -1351,9 +1744,21 @@ function TextBox:SetValue(value)
     safeCall(function()
         self.textBox.Text = value
     end)
+    return self
 end
 
--- Section Class
+function TextBox:GetValue()
+    return self.value
+end
+
+function TextBox:SetPlaceholder(placeholder)
+    self.placeholder = placeholder
+    if self.textBox then
+        self.textBox.PlaceholderText = placeholder
+    end
+    return self
+end
+
 local Section = {}
 Section.__index = Section
 
@@ -1483,7 +1888,6 @@ function Section:Destroy()
     end)
 end
 
--- Page Class
 local Page = {}
 Page.__index = Page
 
@@ -1538,12 +1942,14 @@ function Page:Show()
     safeCall(function()
         self.instance.Visible = true
     end)
+    return self
 end
 
 function Page:Hide()
     safeCall(function()
         self.instance.Visible = false
     end)
+    return self
 end
 
 function Page:Destroy()
@@ -1559,7 +1965,6 @@ function Page:Destroy()
     end)
 end
 
--- Window Class (continued in next message due to length)
 local Window = {}
 Window.__index = Window
 
@@ -1573,6 +1978,13 @@ function Window.new(library, title, subtitle)
     self.pages = {}
     self.currentPage = nil
     self.destroyed = false
+    self.draggable = true
+    self.resizable = false
+    
+    self.PageChanged = Signal.new()
+    self.ThemeChanged = Signal.new()
+    self.StyleChanged = Signal.new()
+    
     self:Create()
     return self
 end
@@ -1623,7 +2035,9 @@ function Window:Create()
     
     self:CreateContentArea()
     self:CreateTopControls()
-    self:SetupDragging()
+    if self.draggable then
+        self:SetupDragging()
+    end
 end
 
 function Window:CreateSidebar()
@@ -1877,27 +2291,27 @@ function Window:CreateTopControls()
     
     close.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(close, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.error}):Play()
-            TweenService:Create(close, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.bg1}):Play()
+            TweenService:Create(close, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.error}):Play()
+            TweenService:Create(close, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.bg1}):Play()
         end)
     end)
     
     close.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(close, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
-            TweenService:Create(close, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.text2}):Play()
+            TweenService:Create(close, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(close, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.text2}):Play()
         end)
     end)
     
     minimize.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(minimize, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(minimize, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
         end)
     end)
     
     minimize.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(minimize, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(minimize, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
 end
@@ -1907,7 +2321,7 @@ function Window:SetupDragging()
     local dragInput, dragStart, startPos
     
     self.topBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = self.mainFrame.Position
@@ -1921,7 +2335,7 @@ function Window:SetupDragging()
     end)
     
     self.topBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
@@ -1992,11 +2406,17 @@ function Window:AddPage(title)
         self:SelectPage(page, button, label, indicator)
     end)
     
+    if isMobile() then
+        button.TouchTap:Connect(function()
+            self:SelectPage(page, button, label, indicator)
+        end)
+    end
+    
     button.MouseEnter:Connect(function()
         if self.currentPage ~= page then
             safeCall(function()
-                TweenService:Create(button, TweenInfo.new(0.2), {BackgroundTransparency = 0.5}):Play()
-                TweenService:Create(label, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.text1}):Play()
+                TweenService:Create(button, TweenInfo.new(self.style.animationSpeed), {BackgroundTransparency = 0.5}):Play()
+                TweenService:Create(label, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.text1}):Play()
             end)
         end
     end)
@@ -2004,8 +2424,8 @@ function Window:AddPage(title)
     button.MouseLeave:Connect(function()
         if self.currentPage ~= page then
             safeCall(function()
-                TweenService:Create(button, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-                TweenService:Create(label, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.text2}):Play()
+                TweenService:Create(button, TweenInfo.new(self.style.animationSpeed), {BackgroundTransparency = 1}):Play()
+                TweenService:Create(label, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.text2}):Play()
             end)
         end
     end)
@@ -2026,10 +2446,10 @@ function Window:SelectPage(page, button, label, indicator)
         for _, p in ipairs(self.pages) do
             p:Hide()
             if p.navButton then
-                TweenService:Create(p.navButton, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+                TweenService:Create(p.navButton, TweenInfo.new(self.style.animationSpeed), {BackgroundTransparency = 1}):Play()
             end
             if p.navLabel then
-                TweenService:Create(p.navLabel, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.text2}):Play()
+                TweenService:Create(p.navLabel, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.text2}):Play()
             end
             if p.navIndicator then
                 p.navIndicator.Visible = false
@@ -2037,44 +2457,139 @@ function Window:SelectPage(page, button, label, indicator)
         end
         
         page:Show()
-        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
-        TweenService:Create(label, TweenInfo.new(0.2), {TextColor3 = self.theme.colors.primary}):Play()
+        TweenService:Create(button, TweenInfo.new(self.style.animationSpeed), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(label, TweenInfo.new(self.style.animationSpeed), {TextColor3 = self.theme.colors.primary}):Play()
         if indicator then
             indicator.Visible = true
         end
         self.pageTitle.Text = page.title
         self.currentPage = page
+        self.PageChanged:Fire(page)
     end)
 end
 
 function Window:SetTheme(presetName)
     if self.theme:SetPreset(presetName) then
+        self.ThemeChanged:Fire(presetName)
         debugPrint("Theme changed to:", presetName)
-        return true
+        return self
     end
-    return false
+    return self
 end
 
 function Window:SetStyle(styleName)
-    if StylePresets[styleName] and styleName ~= self.library.style then
+    if StylePresets[styleName] then
         debugPrint("Applying style:", styleName)
         self.library.style = deepCopy(StylePresets[styleName])
         self.library:SetStyle(styleName)
-        return true
+        self.StyleChanged:Fire(styleName)
+        return self
     end
-    return false
+    return self
+end
+
+function Window:SetSize(size)
+    if self.mainFrame then
+        self.mainFrame.Size = size
+    end
+    return self
+end
+
+function Window:SetDraggable(draggable)
+    self.draggable = draggable
+    return self
 end
 
 function Window:Toggle()
     safeCall(function()
         self.gui.Enabled = not self.gui.Enabled
     end)
+    return self
+end
+
+function Window:Show()
+    safeCall(function()
+        self.gui.Enabled = true
+    end)
+    return self
+end
+
+function Window:Hide()
+    safeCall(function()
+        self.gui.Enabled = false
+    end)
+    return self
+end
+
+function Window:SaveConfig(filename)
+    local config = {
+        pages = {},
+        theme = self.theme.currentPreset,
+        style = self.library.style
+    }
+    
+    for _, page in ipairs(self.pages) do
+        local pageData = {
+            title = page.title,
+            sections = {}
+        }
+        
+        for _, section in ipairs(page.sections) do
+            local sectionData = {
+                title = section.title,
+                components = {}
+            }
+            
+            for _, component in ipairs(section.components) do
+                if component.GetValue then
+                    table.insert(sectionData.components, {
+                        type = tostring(getmetatable(component)),
+                        value = component:GetValue()
+                    })
+                end
+            end
+            
+            table.insert(pageData.sections, sectionData)
+        end
+        
+        table.insert(config.pages, pageData)
+    end
+    
+    local success = safeCall(function()
+        writefile(filename, HttpService:JSONEncode(config))
+    end)
+    
+    debugPrint("Config saved:", success)
+    return self
+end
+
+function Window:LoadConfig(filename)
+    local success, result = safeCall(function()
+        return readfile(filename)
+    end)
+    
+    if success and result then
+        local config = HttpService:JSONDecode(result)
+        
+        if config.theme then
+            self:SetTheme(config.theme)
+        end
+        
+        debugPrint("Config loaded")
+    end
+    
+    return self
 end
 
 function Window:Destroy()
     if not self.destroyed then
         self.destroyed = true
         debugPrint("Destroying window")
+        
+        self.PageChanged:DisconnectAll()
+        self.ThemeChanged:DisconnectAll()
+        self.StyleChanged:DisconnectAll()
+        
         for _, page in ipairs(self.pages) do
             safeCall(function()
                 page:Destroy()
@@ -2094,17 +2609,15 @@ function Window:Destroy()
     end
 end
 
--- Main Library
 function HyperionUI.new(options)
     local self = setmetatable({}, HyperionUI)
     
     options = options or {}
     self.theme = ThemeManager.new(options.theme or "Dark")
-    self.style = deepCopy(StylePresets[options.style or "Modern"])
+    self.style = deepCopy(StylePresets[options.style or (isMobile() and "Mobile" or "Modern")])
     self.toggleKey = options.toggleKey or Enum.KeyCode.Insert
     self.windows = {}
     
-    -- Setup toggle key
     UserInputService.InputBegan:Connect(function(input)
         if input.KeyCode == self.toggleKey then
             for _, window in ipairs(self.windows) do
@@ -2115,7 +2628,7 @@ function HyperionUI.new(options)
         end
     end)
     
-    debugPrint("HyperionUI initialized")
+    debugPrint("HyperionUI initialized v" .. HyperionUI.VERSION)
     return self
 end
 
@@ -2126,6 +2639,18 @@ function HyperionUI:CreateWindow(title, subtitle)
     return window
 end
 
+function HyperionUI:CreateTheme(name, colors)
+    ThemePresets[name] = deepCopy(colors)
+    debugPrint("Custom theme created:", name)
+    return self
+end
+
+function HyperionUI:CreateStyle(name, styleData)
+    StylePresets[name] = deepCopy(styleData)
+    debugPrint("Custom style created:", name)
+    return self
+end
+
 function HyperionUI:SetTheme(presetName)
     if self.theme:SetPreset(presetName) then
         for _, window in ipairs(self.windows) do
@@ -2133,9 +2658,9 @@ function HyperionUI:SetTheme(presetName)
                 window.theme = self.theme
             end)
         end
-        return true
+        return self
     end
-    return false
+    return self
 end
 
 function HyperionUI:SetStyle(styleName)
@@ -2143,7 +2668,6 @@ function HyperionUI:SetStyle(styleName)
         debugPrint("Changing all windows to style:", styleName)
         self.style = deepCopy(StylePresets[styleName])
         
-        -- Store all window data
         local windowData = {}
         for _, window in ipairs(self.windows) do
             local pages = {}
@@ -2158,10 +2682,8 @@ function HyperionUI:SetStyle(styleName)
             window:Destroy()
         end
         
-        -- Clear windows
         self.windows = {}
         
-        -- Recreate windows with new style
         for _, data in ipairs(windowData) do
             local newWindow = self:CreateWindow(data.title, data.subtitle)
             for _, pageTitle in ipairs(data.pages) do
@@ -2169,10 +2691,30 @@ function HyperionUI:SetStyle(styleName)
             end
         end
         
-        debugPrint("Style changed successfully - UI rebuilt")
-        return true
+        debugPrint("Style changed successfully")
+        return self
     end
-    return false
+    return self
+end
+
+function HyperionUI:GetThemes()
+    local themes = {}
+    for name, _ in pairs(ThemePresets) do
+        table.insert(themes, name)
+    end
+    return themes
+end
+
+function HyperionUI:GetStyles()
+    local styles = {}
+    for name, _ in pairs(StylePresets) do
+        table.insert(styles, name)
+    end
+    return styles
+end
+
+function HyperionUI:IsMobile()
+    return isMobile()
 end
 
 function HyperionUI:Destroy()
