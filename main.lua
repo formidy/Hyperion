@@ -1517,7 +1517,7 @@ function Page:Create()
     
     local pagePadding = Instance.new("UIPadding")
     pagePadding.PaddingLeft = UDim.new(0, self.style.contentPadding)
-    pagePadding.PaddingRight = UDim2.new(0, self.style.contentPadding)
+    pagePadding.PaddingRight = UDim.new(0, self.style.contentPadding)
     pagePadding.PaddingTop = UDim.new(0, 8)
     pagePadding.PaddingBottom = UDim.new(0, self.style.contentPadding)
     pagePadding.Parent = page
