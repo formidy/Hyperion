@@ -5802,504 +5802,689 @@ end
 local Dropdown = setmetatable({}, {__index = Component})
 Dropdown.__index = Dropdown
 
+local function safeGetColor(theme, colorName, fallback)
+    local success, result = pcall(function()
+        if theme and theme.colors and theme.colors[colorName] then
+            return theme.colors[colorName]
+        end
+        return fallback or Color3.new(0.2, 0.2, 0.2)
+    end)
+    
+    if not success then
+        warn("[Dropdown] Failed to get color '" .. tostring(colorName) .. "': " .. tostring(result))
+        return fallback or Color3.new(0.2, 0.2, 0.2)
+    end
+    
+    return result
+end
+
+local function safeTween(instance, tweenInfo, properties, debugContext)
+    local success, err = pcall(function()
+        if not instance or not instance.Parent then
+            return
+        end
+        
+        local validProps = {}
+        for prop, value in pairs(properties) do
+            if value ~= nil then
+                validProps[prop] = value
+            else
+                warn("[Dropdown] Skipping nil property '" .. tostring(prop) .. "' in " .. tostring(debugContext))
+            end
+        end
+        
+        if next(validProps) then
+            local tween = TweenService:Create(instance, tweenInfo, validProps)
+            tween:Play()
+            return tween
+        end
+    end)
+    
+    if not success then
+        warn("[Dropdown] Tween failed in " .. tostring(debugContext) .. ": " .. tostring(err))
+    end
+    
+    return success
+end
+
 function Dropdown.new(parent, theme, style, window, text, options, default, callback)
-    local self = setmetatable(Component.new(parent, theme, style, window), Dropdown)
-    self.text = text
-    self.options = options or {}
-    self.value = default or (options and options[1]) or "Select"
-    self.callback = callback
-    self.isOpen = false
-    self.optionButtons = {}
-    self:Create()
-    return self
+    local success, result = pcall(function()
+        local self = setmetatable(Component.new(parent, theme, style, window), Dropdown)
+        self.text = text or "Dropdown"
+        self.options = options or {}
+        self.value = default or (options and options[1]) or "Select"
+        self.callback = callback
+        self.isOpen = false
+        self.optionButtons = {}
+        self.tweens = {}
+        self:Create()
+        return self
+    end)
+    
+    if not success then
+        warn("[Dropdown] Failed to create dropdown: " .. tostring(result))
+        return nil
+    end
+    
+    return result
 end
 
 function Dropdown:Create()
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, 0, 0, self.style.buttonHeight)
-    container.BackgroundColor3 = self.theme.colors.bg3
-    container.BorderSizePixel = 0
-    container.ZIndex = ZINDEX.Content
-    container.ClipsDescendants = false
-    container.Parent = self.parent
-    self.instance = container
-    
-    self.theme:Track(container, "BackgroundColor3", "bg3")
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, self.style.cornerRadius)
-    corner.Parent = container
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.45, -16, 1, 0)
-    label.Position = UDim2.new(0, 12, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = self.text
-    label.TextColor3 = self.theme.colors.text1
-    label.TextSize = 13
-    label.Font = self.style.fontBody
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.ZIndex = ZINDEX.Content
-    label.Parent = container
-    
-    self.theme:Track(label, "TextColor3", "text1")
-    
-    local selected = Instance.new("TextButton")
-    selected.Size = UDim2.new(0.55, -12, 0, 30)
-    selected.Position = UDim2.new(0.45, 4, 0.5, -15)
-    selected.BackgroundColor3 = self.theme.colors.bg4
-    selected.BorderSizePixel = 0
-    selected.Text = ""
-    selected.AutoButtonColor = false
-    selected.ZIndex = ZINDEX.Content
-    selected.Parent = container
-    
-    self.theme:Track(selected, "BackgroundColor3", "bg4")
-    
-    local selectedCorner = Instance.new("UICorner")
-    selectedCorner.CornerRadius = UDim.new(0, self.style.cornerRadius - 2)
-    selectedCorner.Parent = selected
-    
-    local selectedLabel = Instance.new("TextLabel")
-    selectedLabel.Size = UDim2.new(1, -32, 1, 0)
-    selectedLabel.Position = UDim2.new(0, 10, 0, 0)
-    selectedLabel.BackgroundTransparency = 1
-    selectedLabel.Text = self.value
-    selectedLabel.TextColor3 = self.theme.colors.text1
-    selectedLabel.TextSize = 12
-    selectedLabel.Font = self.style.fontBody
-    selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
-    selectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    selectedLabel.ZIndex = ZINDEX.Content
-    selectedLabel.Parent = selected
-    
-    self.theme:Track(selectedLabel, "TextColor3", "text1")
-    self.selectedLabel = selectedLabel
-    
-    local arrow = Instance.new("TextLabel")
-    arrow.Size = UDim2.new(0, 20, 1, 0)
-    arrow.Position = UDim2.new(1, -20, 0, 0)
-    arrow.BackgroundTransparency = 1
-    arrow.Text = "▼"
-    arrow.TextColor3 = self.theme.colors.text3
-    arrow.TextSize = 8
-    arrow.Font = self.style.fontTitle
-    arrow.ZIndex = ZINDEX.Content
-    arrow.Parent = selected
-    
-    self.theme:Track(arrow, "TextColor3", "text3")
-    self.arrow = arrow
-    
-    -- Dropdown list container
-    local listContainer = Instance.new("Frame")
-    listContainer.BackgroundTransparency = 1
-    listContainer.Size = UDim2.new(1, 0, 1, 0)
-    listContainer.Position = UDim2.new(0, 0, 0, 0)
-    listContainer.Visible = false
-    listContainer.ZIndex = ZINDEX.Dropdown
-    listContainer.ClipsDescendants = false
-    listContainer.Parent = self.window.gui
-    self.listContainer = listContainer
-    table.insert(self.modalElements, listContainer)
-    
-    -- Shadow effect for depth
-    local shadow = Instance.new("ImageLabel")
-    shadow.Size = UDim2.new(1, 20, 1, 20)
-    shadow.Position = UDim2.new(0, -10, 0, -10)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-    shadow.ImageColor3 = Color3.new(0, 0, 0)
-    shadow.ImageTransparency = 0.7
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(10, 10, 10, 10)
-    shadow.ZIndex = ZINDEX.Dropdown - 1
-    shadow.Parent = listContainer
-    self.shadow = shadow
-    
-    -- Main dropdown list
-    local listHeight = math.min(#self.options * 36, 180)
-    
-    local list = Instance.new("ScrollingFrame")
-    list.Size = UDim2.new(0, 0, 0, 0)
-    list.AnchorPoint = Vector2.new(0, 0)
-    list.BackgroundColor3 = self.theme.colors.bg2
-    list.BorderSizePixel = 0
-    list.ZIndex = ZINDEX.Dropdown
-    list.ScrollBarThickness = 4
-    list.ScrollBarImageColor3 = self.theme.colors.text3
-    list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
-    list.BackgroundTransparency = 1
-    list.ClipsDescendants = true
-    list.Parent = listContainer
-    
-    self.theme:Track(list, "BackgroundColor3", "bg2")
-    self.theme:Track(list, "ScrollBarImageColor3", "text3")
-    self.list = list
-    self.listHeight = listHeight
-    
-    local listCorner = Instance.new("UICorner")
-    listCorner.CornerRadius = UDim.new(0, self.style.cornerRadius - 2)
-    listCorner.Parent = list
-    
-    -- Enhanced border for elevation
-    if self.style.borderWidth > 0 then
-        local listStroke = Instance.new("UIStroke")
-        listStroke.Color = self.theme.colors.border
-        listStroke.Thickness = self.style.borderWidth
-        listStroke.Transparency = 0.3
-        listStroke.Parent = list
+    safeCall(function()
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, self.style.buttonHeight or 40)
+        container.BackgroundColor3 = safeGetColor(self.theme, "bg3", Color3.fromRGB(45, 45, 45))
+        container.BorderSizePixel = 0
+        container.ZIndex = ZINDEX.Content
+        container.ClipsDescendants = false
+        container.Parent = self.parent
+        self.instance = container
         
-        self.theme:Track(listStroke, "Color", "border")
-        self.listStroke = listStroke
-    end
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 0)
-    listLayout.Parent = list
-    
-    -- Create option buttons
-    for i, option in ipairs(self.options) do
-        local optBtn = Instance.new("TextButton")
-        optBtn.Size = UDim2.new(1, 0, 0, 36)
-        optBtn.BackgroundColor3 = self.theme.colors.bg2
-        optBtn.BorderSizePixel = 0
-        optBtn.Text = ""
-        optBtn.AutoButtonColor = false
-        optBtn.ZIndex = ZINDEX.Dropdown + 1
-        optBtn.BackgroundTransparency = 1
-        optBtn.Parent = list
+        pcall(function()
+            self.theme:Track(container, "BackgroundColor3", "bg3")
+        end)
         
-        -- Selection indicator
-        local indicator = Instance.new("Frame")
-        indicator.Size = UDim2.new(0, 3, 1, 0)
-        indicator.Position = UDim2.new(0, 0, 0, 0)
-        indicator.BackgroundColor3 = self.theme.colors.accent
-        indicator.BorderSizePixel = 0
-        indicator.ZIndex = ZINDEX.Dropdown + 2
-        indicator.Visible = option == self.value
-        indicator.Parent = optBtn
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, self.style.cornerRadius or 6)
+        corner.Parent = container
         
-        self.theme:Track(indicator, "BackgroundColor3", "accent")
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, -16, 1, 0)
+        label.Position = UDim2.new(0, 12, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = self.text
+        label.TextColor3 = safeGetColor(self.theme, "text1", Color3.fromRGB(255, 255, 255))
+        label.TextSize = 13
+        label.Font = self.style.fontBody or Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = ZINDEX.Content
+        label.Parent = container
         
-        local optLabel = Instance.new("TextLabel")
-        optLabel.Size = UDim2.new(1, -20, 1, 0)
-        optLabel.Position = UDim2.new(0, 10, 0, 0)
-        optLabel.BackgroundTransparency = 1
-        optLabel.Text = option
-        optLabel.TextColor3 = option == self.value and self.theme.colors.accent or self.theme.colors.text1
-        optLabel.TextSize = 12
-        optLabel.Font = self.style.fontBody
-        optLabel.TextXAlignment = Enum.TextXAlignment.Left
-        optLabel.ZIndex = ZINDEX.Dropdown + 1
-        optLabel.Parent = optBtn
+        pcall(function()
+            self.theme:Track(label, "TextColor3", "text1")
+        end)
         
-        if option == self.value then
-            self.theme:Track(optLabel, "TextColor3", "accent")
-        else
-            self.theme:Track(optLabel, "TextColor3", "text1")
+        local selected = Instance.new("TextButton")
+        selected.Size = UDim2.new(0.55, -12, 0, 30)
+        selected.Position = UDim2.new(0.45, 4, 0.5, -15)
+        selected.BackgroundColor3 = safeGetColor(self.theme, "bg4", Color3.fromRGB(55, 55, 55))
+        selected.BorderSizePixel = 0
+        selected.Text = ""
+        selected.AutoButtonColor = false
+        selected.ZIndex = ZINDEX.Content
+        selected.Parent = container
+        
+        pcall(function()
+            self.theme:Track(selected, "BackgroundColor3", "bg4")
+        end)
+        
+        local selectedCorner = Instance.new("UICorner")
+        selectedCorner.CornerRadius = UDim.new(0, (self.style.cornerRadius or 6) - 2)
+        selectedCorner.Parent = selected
+        
+        local selectedLabel = Instance.new("TextLabel")
+        selectedLabel.Size = UDim2.new(1, -32, 1, 0)
+        selectedLabel.Position = UDim2.new(0, 10, 0, 0)
+        selectedLabel.BackgroundTransparency = 1
+        selectedLabel.Text = self.value
+        selectedLabel.TextColor3 = safeGetColor(self.theme, "text1", Color3.fromRGB(255, 255, 255))
+        selectedLabel.TextSize = 12
+        selectedLabel.Font = self.style.fontBody or Enum.Font.Gotham
+        selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+        selectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        selectedLabel.ZIndex = ZINDEX.Content
+        selectedLabel.Parent = selected
+        
+        pcall(function()
+            self.theme:Track(selectedLabel, "TextColor3", "text1")
+        end)
+        self.selectedLabel = selectedLabel
+        
+        local arrow = Instance.new("TextLabel")
+        arrow.Size = UDim2.new(0, 20, 1, 0)
+        arrow.Position = UDim2.new(1, -20, 0, 0)
+        arrow.BackgroundTransparency = 1
+        arrow.Text = "▼"
+        arrow.TextColor3 = safeGetColor(self.theme, "text3", Color3.fromRGB(150, 150, 150))
+        arrow.TextSize = 8
+        arrow.Font = self.style.fontTitle or Enum.Font.GothamBold
+        arrow.ZIndex = ZINDEX.Content
+        arrow.Parent = selected
+        
+        pcall(function()
+            self.theme:Track(arrow, "TextColor3", "text3")
+        end)
+        self.arrow = arrow
+        
+        local listContainer = Instance.new("Frame")
+        listContainer.BackgroundTransparency = 1
+        listContainer.Size = UDim2.new(1, 0, 1, 0)
+        listContainer.Position = UDim2.new(0, 0, 0, 0)
+        listContainer.Visible = false
+        listContainer.ZIndex = ZINDEX.Dropdown or 100
+        listContainer.ClipsDescendants = false
+        listContainer.Parent = self.window.gui
+        self.listContainer = listContainer
+        
+        if self.modalElements then
+            table.insert(self.modalElements, listContainer)
         end
         
-        self.optionButtons[i] = {
-            button = optBtn,
-            label = optLabel,
-            indicator = indicator,
-            option = option
-        }
+        local shadow = Instance.new("Frame")
+        shadow.Size = UDim2.new(0, 0, 0, 0)
+        shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+        shadow.BackgroundTransparency = 0.7
+        shadow.BorderSizePixel = 0
+        shadow.ZIndex = (ZINDEX.Dropdown or 100) - 1
+        shadow.Parent = listContainer
+        self.shadow = shadow
         
-        local function selectOption()
-            safeCall(function()
-                self.value = option
-                selectedLabel.Text = option
+        local shadowCorner = Instance.new("UICorner")
+        shadowCorner.CornerRadius = UDim.new(0, (self.style.cornerRadius or 6) - 2)
+        shadowCorner.Parent = shadow
+        
+        local listHeight = math.min(#self.options * 36, 180)
+        
+        local list = Instance.new("ScrollingFrame")
+        list.Size = UDim2.new(0, 0, 0, 0)
+        list.AnchorPoint = Vector2.new(0, 0)
+        list.BackgroundColor3 = safeGetColor(self.theme, "bg2", Color3.fromRGB(35, 35, 35))
+        list.BorderSizePixel = 0
+        list.ZIndex = ZINDEX.Dropdown or 100
+        list.ScrollBarThickness = 4
+        list.ScrollBarImageColor3 = safeGetColor(self.theme, "text3", Color3.fromRGB(150, 150, 150))
+        list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
+        list.BackgroundTransparency = 1
+        list.ClipsDescendants = true
+        list.Parent = listContainer
+        
+        pcall(function()
+            self.theme:Track(list, "BackgroundColor3", "bg2")
+            self.theme:Track(list, "ScrollBarImageColor3", "text3")
+        end)
+        
+        self.list = list
+        self.listHeight = listHeight
+        
+        local listCorner = Instance.new("UICorner")
+        listCorner.CornerRadius = UDim.new(0, (self.style.cornerRadius or 6) - 2)
+        listCorner.Parent = list
+        
+        if (self.style.borderWidth or 0) > 0 then
+            local listStroke = Instance.new("UIStroke")
+            listStroke.Color = safeGetColor(self.theme, "border", Color3.fromRGB(80, 80, 80))
+            listStroke.Thickness = self.style.borderWidth
+            listStroke.Transparency = 1
+            listStroke.Parent = list
+            
+            pcall(function()
+                self.theme:Track(listStroke, "Color", "border")
+            end)
+            self.listStroke = listStroke
+        end
+        
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Padding = UDim.new(0, 0)
+        listLayout.Parent = list
+        
+        for i, option in ipairs(self.options) do
+            pcall(function()
+                local optBtn = Instance.new("TextButton")
+                optBtn.Size = UDim2.new(1, 0, 0, 36)
+                optBtn.BackgroundColor3 = safeGetColor(self.theme, "bg2", Color3.fromRGB(35, 35, 35))
+                optBtn.BorderSizePixel = 0
+                optBtn.Text = ""
+                optBtn.AutoButtonColor = false
+                optBtn.ZIndex = (ZINDEX.Dropdown or 100) + 1
+                optBtn.BackgroundTransparency = 1
+                optBtn.Parent = list
                 
-                -- Update all indicators
-                for _, opt in ipairs(self.optionButtons) do
-                    opt.indicator.Visible = opt.option == option
-                    if opt.option == option then
-                        self.theme:Track(opt.label, "TextColor3", "accent")
-                    else
-                        self.theme:Track(opt.label, "TextColor3", "text1")
+                local indicator = Instance.new("Frame")
+                indicator.Size = UDim2.new(0, 3, 1, 0)
+                indicator.Position = UDim2.new(0, 0, 0, 0)
+                indicator.BackgroundColor3 = safeGetColor(self.theme, "accent", Color3.fromRGB(100, 150, 255))
+                indicator.BorderSizePixel = 0
+                indicator.ZIndex = (ZINDEX.Dropdown or 100) + 2
+                indicator.Visible = option == self.value
+                indicator.BackgroundTransparency = option == self.value and 0 or 1
+                indicator.Parent = optBtn
+                
+                pcall(function()
+                    self.theme:Track(indicator, "BackgroundColor3", "accent")
+                end)
+                
+                local optLabel = Instance.new("TextLabel")
+                optLabel.Size = UDim2.new(1, -20, 1, 0)
+                optLabel.Position = UDim2.new(0, 10, 0, 0)
+                optLabel.BackgroundTransparency = 1
+                optLabel.Text = tostring(option)
+                optLabel.TextSize = 12
+                optLabel.Font = self.style.fontBody or Enum.Font.Gotham
+                optLabel.TextXAlignment = Enum.TextXAlignment.Left
+                optLabel.ZIndex = (ZINDEX.Dropdown or 100) + 1
+                optLabel.TextTransparency = 1
+                optLabel.Parent = optBtn
+                
+                if option == self.value then
+                    optLabel.TextColor3 = safeGetColor(self.theme, "accent", Color3.fromRGB(100, 150, 255))
+                    pcall(function()
+                        self.theme:Track(optLabel, "TextColor3", "accent")
+                    end)
+                else
+                    optLabel.TextColor3 = safeGetColor(self.theme, "text1", Color3.fromRGB(255, 255, 255))
+                    pcall(function()
+                        self.theme:Track(optLabel, "TextColor3", "text1")
+                    end)
+                end
+                
+                self.optionButtons[i] = {
+                    button = optBtn,
+                    label = optLabel,
+                    indicator = indicator,
+                    option = option
+                }
+                
+                local function selectOption()
+                    safeCall(function()
+                        self.value = option
+                        selectedLabel.Text = tostring(option)
+                        
+                        for _, opt in ipairs(self.optionButtons) do
+                            pcall(function()
+                                opt.indicator.Visible = opt.option == option
+                                opt.indicator.BackgroundTransparency = opt.option == option and 0 or 1
+                                
+                                if opt.option == option then
+                                    opt.label.TextColor3 = safeGetColor(self.theme, "accent", Color3.fromRGB(100, 150, 255))
+                                    pcall(function()
+                                        self.theme:Track(opt.label, "TextColor3", "accent")
+                                    end)
+                                else
+                                    opt.label.TextColor3 = safeGetColor(self.theme, "text1", Color3.fromRGB(255, 255, 255))
+                                    pcall(function()
+                                        self.theme:Track(opt.label, "TextColor3", "text1")
+                                    end)
+                                end
+                            end)
+                        end
+                        
+                        self:CloseDropdown()
+                        
+                        if self.callback then
+                            pcall(function()
+                                self.callback(option)
+                            end)
+                        end
+                        
+                        if self.Changed then
+                            pcall(function()
+                                self.Changed:Fire(option)
+                            end)
+                        end
+                    end)
+                end
+                
+                optBtn.MouseButton1Click:Connect(selectOption)
+                
+                if isMobile and isMobile() then
+                    optBtn.TouchTap:Connect(selectOption)
+                end
+                
+                optBtn.MouseEnter:Connect(function()
+                    safeCall(function()
+                        safeTween(optBtn, 
+                            TweenInfo.new((self.style.animationSpeed or 0.15) * 0.5), 
+                            {
+                                BackgroundTransparency = 0,
+                                BackgroundColor3 = safeGetColor(self.theme, "bg3", Color3.fromRGB(45, 45, 45))
+                            },
+                            "Option hover enter"
+                        )
+                    end)
+                end)
+                
+                optBtn.MouseLeave:Connect(function()
+                    safeCall(function()
+                        safeTween(optBtn,
+                            TweenInfo.new((self.style.animationSpeed or 0.15) * 0.5),
+                            {BackgroundTransparency = 1},
+                            "Option hover leave"
+                        )
+                    end)
+                end)
+            end)
+        end
+        
+        local function updateListPosition()
+            safeCall(function()
+                if not selected or not selected.Parent then return end
+                
+                local absPos = selected.AbsolutePosition
+                local absSize = selected.AbsoluteSize
+                
+                list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 6)
+                shadow.Position = UDim2.new(0, absPos.X - 4, 0, absPos.Y + absSize.Y + 2)
+            end)
+        end
+        
+        local function toggleDropdown()
+            safeCall(function()
+                if self.isOpen then
+                    self:CloseDropdown()
+                else
+                    self:OpenDropdown()
+                end
+            end)
+        end
+        
+        selected.MouseButton1Click:Connect(toggleDropdown)
+        
+        if isMobile and isMobile() then
+            selected.TouchTap:Connect(toggleDropdown)
+        end
+        
+        selected.MouseEnter:Connect(function()
+            safeCall(function()
+                safeTween(selected,
+                    TweenInfo.new(self.style.animationSpeed or 0.15),
+                    {BackgroundColor3 = safeGetColor(self.theme, "bg5", Color3.fromRGB(65, 65, 65))},
+                    "Selected button hover"
+                )
+            end)
+        end)
+        
+        selected.MouseLeave:Connect(function()
+            safeCall(function()
+                if not self.isOpen then
+                    safeTween(selected,
+                        TweenInfo.new(self.style.animationSpeed or 0.15),
+                        {BackgroundColor3 = safeGetColor(self.theme, "bg4", Color3.fromRGB(55, 55, 55))},
+                        "Selected button leave"
+                    )
+                end
+            end)
+        end)
+        
+        container.MouseEnter:Connect(function()
+            safeCall(function()
+                safeTween(container,
+                    TweenInfo.new(self.style.animationSpeed or 0.15),
+                    {BackgroundColor3 = safeGetColor(self.theme, "bg4", Color3.fromRGB(55, 55, 55))},
+                    "Container hover"
+                )
+            end)
+        end)
+        
+        container.MouseLeave:Connect(function()
+            safeCall(function()
+                safeTween(container,
+                    TweenInfo.new(self.style.animationSpeed or 0.15),
+                    {BackgroundColor3 = safeGetColor(self.theme, "bg3", Color3.fromRGB(45, 45, 45))},
+                    "Container leave"
+                )
+            end)
+        end)
+        
+        self.updateListPosition = updateListPosition
+        self.selected = selected
+        
+        pcall(function()
+            UserInputService.InputBegan:Connect(function(input)
+                safeCall(function()
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        if not self.isOpen then return end
+                        if not list or not list.Parent then return end
+                        if not selected or not selected.Parent then return end
+                        
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local listPos = list.AbsolutePosition
+                        local listSize = list.AbsoluteSize
+                        
+                        local isInList = mousePos.X >= listPos.X and mousePos.X <= listPos.X + listSize.X and 
+                                        mousePos.Y >= listPos.Y and mousePos.Y <= listPos.Y + listSize.Y
+                        
+                        local selectedPos = selected.AbsolutePosition
+                        local selectedSize = selected.AbsoluteSize
+                        
+                        local isInSelected = mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
+                                            mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y
+                        
+                        if not isInList and not isInSelected then
+                            self:CloseDropdown()
+                        end
                     end
-                end
-                
-                self:CloseDropdown()
-                if self.callback then
-                    self.callback(option)
-                end
-                self.Changed:Fire(option)
-            end)
-        end
-        
-        optBtn.MouseButton1Click:Connect(selectOption)
-        
-        if isMobile() then
-            optBtn.TouchTap:Connect(selectOption)
-        end
-        
-        optBtn.MouseEnter:Connect(function()
-            safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
-                    BackgroundTransparency = 0
-                }):Play()
-                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
-                    BackgroundColor3 = self.theme.colors.bg3
-                }):Play()
+                end)
             end)
         end)
-        
-        optBtn.MouseLeave:Connect(function()
-            safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
-                    BackgroundTransparency = 1
-                }):Play()
-            end)
-        end)
-    end
-    
-    local function updateListPosition()
-        safeCall(function()
-            local absPos = selected.AbsolutePosition
-            local absSize = selected.AbsoluteSize
-            
-            -- Position the list directly below the selected button
-            list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 6)
-            shadow.Position = UDim2.new(0, absPos.X - 4, 0, absPos.Y + absSize.Y + 6)
-        end)
-    end
-    
-    local function toggleDropdown()
-        safeCall(function()
-            if self.isOpen then
-                self:CloseDropdown()
-            else
-                self:OpenDropdown()
-            end
-        end)
-    end
-    
-    selected.MouseButton1Click:Connect(toggleDropdown)
-    
-    if isMobile() then
-        selected.TouchTap:Connect(toggleDropdown)
-    end
-    
-    selected.MouseEnter:Connect(function()
-        safeCall(function()
-            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {
-                BackgroundColor3 = self.theme.colors.bg5
-            }):Play()
-        end)
-    end)
-    
-    selected.MouseLeave:Connect(function()
-        safeCall(function()
-            if not self.isOpen then
-                TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {
-                    BackgroundColor3 = self.theme.colors.bg4
-                }):Play()
-            end
-        end)
-    end)
-    
-    container.MouseEnter:Connect(function()
-        safeCall(function()
-            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {
-                BackgroundColor3 = self.theme.colors.bg4
-            }):Play()
-        end)
-    end)
-    
-    container.MouseLeave:Connect(function()
-        safeCall(function()
-            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {
-                BackgroundColor3 = self.theme.colors.bg3
-            }):Play()
-        end)
-    end)
-    
-    self.updateListPosition = updateListPosition
-    self.selected = selected
-    
-    -- Click outside to close
-    UserInputService.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if not self.isOpen then return end
-            
-            local mousePos = UserInputService:GetMouseLocation()
-            local listPos = list.AbsolutePosition
-            local listSize = list.AbsoluteSize
-            
-            local isInList = mousePos.X >= listPos.X and mousePos.X <= listPos.X + listSize.X and 
-                            mousePos.Y >= listPos.Y and mousePos.Y <= listPos.Y + listSize.Y
-            
-            local selectedPos = selected.AbsolutePosition
-            local selectedSize = selected.AbsoluteSize
-            
-            local isInSelected = mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
-                                mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y
-            
-            if not isInList and not isInSelected then
-                self:CloseDropdown()
-            end
-        end
     end)
 end
 
 function Dropdown:OpenDropdown()
     safeCall(function()
+        if not self.list or not self.list.Parent then 
+            warn("[Dropdown] Cannot open - list not found")
+            return 
+        end
+        
         self.isOpen = true
         self.updateListPosition()
         self.listContainer.Visible = true
         
-        local absSize = self.selected.AbsoluteSize
+        local absSize = self.selected and self.selected.AbsoluteSize or Vector2.new(200, 30)
         
-        -- Set initial state (collapsed from top)
         self.list.Size = UDim2.new(0, absSize.X, 0, 0)
         self.list.BackgroundTransparency = 1
+        
         if self.listStroke then
             self.listStroke.Transparency = 1
         end
-        self.shadow.ImageTransparency = 1
         
-        -- Reset all option buttons
+        if self.shadow then
+            self.shadow.Size = UDim2.new(0, absSize.X + 8, 0, 0)
+            self.shadow.BackgroundTransparency = 1
+        end
+        
         for _, opt in ipairs(self.optionButtons) do
-            opt.button.BackgroundTransparency = 1
-            opt.label.TextTransparency = 1
-            opt.indicator.BackgroundTransparency = 1
+            pcall(function()
+                opt.button.BackgroundTransparency = 1
+                opt.label.TextTransparency = 1
+                opt.indicator.BackgroundTransparency = 1
+            end)
         end
         
-        -- Animate list expansion
-        local expandTween = TweenService:Create(self.list, 
-            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, absSize.X, 0, self.listHeight),
-            BackgroundTransparency = 0
-        })
+        safeTween(self.list,
+            TweenInfo.new((self.style.animationSpeed or 0.15) * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+            {
+                Size = UDim2.new(0, absSize.X, 0, self.listHeight),
+                BackgroundTransparency = 0
+            },
+            "List expand"
+        )
         
-        expandTween:Play()
+        if self.shadow then
+            safeTween(self.shadow,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                {
+                    BackgroundTransparency = 0.85,
+                    Size = UDim2.new(0, absSize.X + 8, 0, self.listHeight + 8)
+                },
+                "Shadow expand"
+            )
+        end
         
-        -- Animate shadow
-        TweenService:Create(self.shadow, 
-            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            ImageTransparency = 0.7,
-            Size = UDim2.new(0, absSize.X + 8, 0, self.listHeight + 8)
-        }):Play()
-        
-        -- Animate border
         if self.listStroke then
-            TweenService:Create(self.listStroke, 
-                TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-                Transparency = 0.3
-            }):Play()
+            safeTween(self.listStroke,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                {Transparency = 0.3},
+                "Border fade in"
+            )
         end
         
-        -- Stagger fade-in for options
-        for i, opt in ipairs(self.optionButtons) do
-            local delay = self.style.animationSpeed * 0.3 + (i - 1) * 0.02
-            
-            task.wait(delay)
-            
-            TweenService:Create(opt.label, 
-                TweenInfo.new(self.style.animationSpeed * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                TextTransparency = 0
-            }):Play()
-            
-            if opt.indicator.Visible then
-                TweenService:Create(opt.indicator, 
-                    TweenInfo.new(self.style.animationSpeed * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 0
-                }):Play()
+        task.spawn(function()
+            for i, opt in ipairs(self.optionButtons) do
+                local delay = (self.style.animationSpeed or 0.15) * 0.3 + (i - 1) * 0.02
+                task.wait(delay)
+                
+                pcall(function()
+                    if not opt or not opt.label or not opt.label.Parent then return end
+                    
+                    safeTween(opt.label,
+                        TweenInfo.new((self.style.animationSpeed or 0.15) * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                        {TextTransparency = 0},
+                        "Option label fade " .. i
+                    )
+                    
+                    if opt.indicator and opt.indicator.Visible then
+                        safeTween(opt.indicator,
+                            TweenInfo.new((self.style.animationSpeed or 0.15) * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                            {BackgroundTransparency = 0},
+                            "Option indicator fade " .. i
+                        )
+                    end
+                end)
             end
+        end)
+        
+        if self.arrow then
+            safeTween(self.arrow,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                {Rotation = 180},
+                "Arrow rotate open"
+            )
         end
         
-        -- Rotate arrow
-        TweenService:Create(self.arrow, 
-            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-            Rotation = 180
-        }):Play()
-        
-        -- Keep selected button highlighted
-        TweenService:Create(self.selected, TweenInfo.new(self.style.animationSpeed), {
-            BackgroundColor3 = self.theme.colors.bg5
-        }):Play()
+        if self.selected then
+            safeTween(self.selected,
+                TweenInfo.new(self.style.animationSpeed or 0.15),
+                {BackgroundColor3 = safeGetColor(self.theme, "bg5", Color3.fromRGB(65, 65, 65))},
+                "Selected button highlight"
+            )
+        end
     end)
 end
 
 function Dropdown:CloseDropdown()
     safeCall(function()
+        if not self.list or not self.list.Parent then 
+            return 
+        end
+        
         self.isOpen = false
         
-        local absSize = self.selected.AbsoluteSize
+        local absSize = self.selected and self.selected.AbsoluteSize or Vector2.new(200, 30)
         
-        -- Fade out options quickly
         for i, opt in ipairs(self.optionButtons) do
-            TweenService:Create(opt.label, 
-                TweenInfo.new(self.style.animationSpeed * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                TextTransparency = 1
-            }):Play()
-            
-            TweenService:Create(opt.indicator, 
-                TweenInfo.new(self.style.animationSpeed * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                BackgroundTransparency = 1
-            }):Play()
+            pcall(function()
+                if not opt or not opt.label or not opt.label.Parent then return end
+                
+                safeTween(opt.label,
+                    TweenInfo.new((self.style.animationSpeed or 0.15) * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+                    {TextTransparency = 1},
+                    "Option label hide " .. i
+                )
+                
+                if opt.indicator then
+                    safeTween(opt.indicator,
+                        TweenInfo.new((self.style.animationSpeed or 0.15) * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+                        {BackgroundTransparency = 1},
+                        "Option indicator hide " .. i
+                    )
+                end
+            end)
         end
         
-        -- Collapse list
-        local collapseTween = TweenService:Create(self.list, 
-            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, absSize.X, 0, 0),
-            BackgroundTransparency = 1
-        })
+        local collapseTween = safeTween(self.list,
+            TweenInfo.new((self.style.animationSpeed or 0.15) * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+            {
+                Size = UDim2.new(0, absSize.X, 0, 0),
+                BackgroundTransparency = 1
+            },
+            "List collapse"
+        )
         
-        collapseTween.Completed:Connect(function()
-            self.listContainer.Visible = false
+        task.delay((self.style.animationSpeed or 0.15) * 1.2, function()
+            safeCall(function()
+                if self.listContainer and self.listContainer.Parent then
+                    self.listContainer.Visible = false
+                end
+            end)
         end)
         
-        collapseTween:Play()
-        
-        -- Animate shadow
-        TweenService:Create(self.shadow, 
-            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-            ImageTransparency = 1
-        }):Play()
-        
-        -- Animate border
-        if self.listStroke then
-            TweenService:Create(self.listStroke, 
-                TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-                Transparency = 1
-            }):Play()
+        if self.shadow then
+            safeTween(self.shadow,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+                {
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(0, absSize.X + 8, 0, 0)
+                },
+                "Shadow collapse"
+            )
         end
         
-        TweenService:Create(self.arrow, 
-            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-            Rotation = 0
-        }):Play()
+        if self.listStroke then
+            safeTween(self.listStroke,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+                {Transparency = 1},
+                "Border fade out"
+            )
+        end
         
-        TweenService:Create(self.selected, TweenInfo.new(self.style.animationSpeed), {
-            BackgroundColor3 = self.theme.colors.bg4
-        }):Play()
+        if self.arrow then
+            safeTween(self.arrow,
+                TweenInfo.new((self.style.animationSpeed or 0.15) * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+                {Rotation = 0},
+                "Arrow rotate close"
+            )
+        end
+        
+        if self.selected then
+            safeTween(self.selected,
+                TweenInfo.new(self.style.animationSpeed or 0.15),
+                {BackgroundColor3 = safeGetColor(self.theme, "bg4", Color3.fromRGB(55, 55, 55))},
+                "Selected button restore"
+            )
+        end
     end)
 end
 
 function Dropdown:SetValue(value)
-    for _, option in ipairs(self.options) do
-        if option == value then
-            self.value = value
-            safeCall(function()
-                self.selectedLabel.Text = value
+    safeCall(function()
+        for _, option in ipairs(self.options) do
+            if option == value then
+                self.value = value
+                
+                if self.selectedLabel and self.selectedLabel.Parent then
+                    self.selectedLabel.Text = tostring(value)
+                end
                 
                 for _, opt in ipairs(self.optionButtons) do
-                    opt.indicator.Visible = opt.option == value
-                    if opt.option == value then
-                        self.theme:Track(opt.label, "TextColor3", "accent")
-                    else
-                        self.theme:Track(opt.label, "TextColor3", "text1")
-                    end
+                    pcall(function()
+                        if not opt or not opt.indicator then return end
+                        
+                        opt.indicator.Visible = opt.option == value
+                        opt.indicator.BackgroundTransparency = opt.option == value and 0 or 1
+                        
+                        if opt.label and opt.label.Parent then
+                            if opt.option == value then
+                                opt.label.TextColor3 = safeGetColor(self.theme, "accent", Color3.fromRGB(100, 150, 255))
+                                pcall(function()
+                                    self.theme:Track(opt.label, "TextColor3", "accent")
+                                end)
+                            else
+                                opt.label.TextColor3 = safeGetColor(self.theme, "text1", Color3.fromRGB(255, 255, 255))
+                                pcall(function()
+                                    self.theme:Track(opt.label, "TextColor3", "text1")
+                                end)
+                            end
+                        end
+                    end)
                 end
-            end)
-            return self
+                
+                return self
+            end
         end
-    end
+    end)
     return self
 end
 
@@ -6308,13 +6493,44 @@ function Dropdown:GetValue()
 end
 
 function Dropdown:SetOptions(options)
-    self.options = options
+    self.options = options or {}
     return self
 end
 
 function Dropdown:GetOptions()
     return self.options
 end
+
+function Dropdown:Destroy()
+    safeCall(function()
+        if self.tweens then
+            for _, tween in ipairs(self.tweens) do
+                pcall(function()
+                    tween:Cancel()
+                end)
+            end
+        end
+        
+        if self.listContainer then
+            pcall(function()
+                self.listContainer:Destroy()
+            end)
+        end
+        
+        if self.instance then
+            pcall(function()
+                self.instance:Destroy()
+            end)
+        end
+        
+        if Component.Destroy then
+            pcall(function()
+                Component.Destroy(self)
+            end)
+        end
+    end)
+end
+
 local ColorPicker = setmetatable({}, {__index = Component})
 ColorPicker.__index = ColorPicker
 
