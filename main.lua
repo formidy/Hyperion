@@ -5809,6 +5809,7 @@ function Dropdown.new(parent, theme, style, window, text, options, default, call
     self.value = default or (options and options[1]) or "Select"
     self.callback = callback
     self.isOpen = false
+    self.optionButtons = {}
     self:Create()
     return self
 end
@@ -5889,39 +5890,67 @@ function Dropdown:Create()
     self.theme:Track(arrow, "TextColor3", "text3")
     self.arrow = arrow
     
+    -- Dropdown list container
+    local listContainer = Instance.new("Frame")
+    listContainer.BackgroundTransparency = 1
+    listContainer.Size = UDim2.new(1, 0, 1, 0)
+    listContainer.Position = UDim2.new(0, 0, 0, 0)
+    listContainer.Visible = false
+    listContainer.ZIndex = ZINDEX.Dropdown
+    listContainer.ClipsDescendants = false
+    listContainer.Parent = self.window.gui
+    self.listContainer = listContainer
+    table.insert(self.modalElements, listContainer)
+    
+    -- Shadow effect for depth
+    local shadow = Instance.new("ImageLabel")
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.7
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 10, 10)
+    shadow.ZIndex = ZINDEX.Dropdown - 1
+    shadow.Parent = listContainer
+    self.shadow = shadow
+    
+    -- Main dropdown list
     local listHeight = math.min(#self.options * 36, 180)
     
     local list = Instance.new("ScrollingFrame")
     list.Size = UDim2.new(0, 0, 0, 0)
+    list.AnchorPoint = Vector2.new(0, 0)
     list.BackgroundColor3 = self.theme.colors.bg2
     list.BorderSizePixel = 0
-    list.Visible = false
     list.ZIndex = ZINDEX.Dropdown
     list.ScrollBarThickness = 4
     list.ScrollBarImageColor3 = self.theme.colors.text3
     list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
     list.BackgroundTransparency = 1
     list.ClipsDescendants = true
-    list.Parent = self.window.gui
+    list.Parent = listContainer
     
     self.theme:Track(list, "BackgroundColor3", "bg2")
     self.theme:Track(list, "ScrollBarImageColor3", "text3")
     self.list = list
     self.listHeight = listHeight
-    table.insert(self.modalElements, list)
     
     local listCorner = Instance.new("UICorner")
     listCorner.CornerRadius = UDim.new(0, self.style.cornerRadius - 2)
     listCorner.Parent = list
     
+    -- Enhanced border for elevation
     if self.style.borderWidth > 0 then
         local listStroke = Instance.new("UIStroke")
         listStroke.Color = self.theme.colors.border
         listStroke.Thickness = self.style.borderWidth
-        listStroke.Transparency = 0.5
+        listStroke.Transparency = 0.3
         listStroke.Parent = list
         
         self.theme:Track(listStroke, "Color", "border")
+        self.listStroke = listStroke
     end
     
     local listLayout = Instance.new("UIListLayout")
@@ -5929,6 +5958,7 @@ function Dropdown:Create()
     listLayout.Padding = UDim.new(0, 0)
     listLayout.Parent = list
     
+    -- Create option buttons
     for i, option in ipairs(self.options) do
         local optBtn = Instance.new("TextButton")
         optBtn.Size = UDim2.new(1, 0, 0, 36)
@@ -5937,26 +5967,61 @@ function Dropdown:Create()
         optBtn.Text = ""
         optBtn.AutoButtonColor = false
         optBtn.ZIndex = ZINDEX.Dropdown + 1
+        optBtn.BackgroundTransparency = 1
         optBtn.Parent = list
+        
+        -- Selection indicator
+        local indicator = Instance.new("Frame")
+        indicator.Size = UDim2.new(0, 3, 1, 0)
+        indicator.Position = UDim2.new(0, 0, 0, 0)
+        indicator.BackgroundColor3 = self.theme.colors.accent
+        indicator.BorderSizePixel = 0
+        indicator.ZIndex = ZINDEX.Dropdown + 2
+        indicator.Visible = option == self.value
+        indicator.Parent = optBtn
+        
+        self.theme:Track(indicator, "BackgroundColor3", "accent")
         
         local optLabel = Instance.new("TextLabel")
         optLabel.Size = UDim2.new(1, -20, 1, 0)
         optLabel.Position = UDim2.new(0, 10, 0, 0)
         optLabel.BackgroundTransparency = 1
         optLabel.Text = option
-        optLabel.TextColor3 = self.theme.colors.text1
+        optLabel.TextColor3 = option == self.value and self.theme.colors.accent or self.theme.colors.text1
         optLabel.TextSize = 12
         optLabel.Font = self.style.fontBody
         optLabel.TextXAlignment = Enum.TextXAlignment.Left
         optLabel.ZIndex = ZINDEX.Dropdown + 1
         optLabel.Parent = optBtn
         
-        self.theme:Track(optLabel, "TextColor3", "text1")
+        if option == self.value then
+            self.theme:Track(optLabel, "TextColor3", "accent")
+        else
+            self.theme:Track(optLabel, "TextColor3", "text1")
+        end
+        
+        self.optionButtons[i] = {
+            button = optBtn,
+            label = optLabel,
+            indicator = indicator,
+            option = option
+        }
         
         local function selectOption()
             safeCall(function()
                 self.value = option
                 selectedLabel.Text = option
+                
+                -- Update all indicators
+                for _, opt in ipairs(self.optionButtons) do
+                    opt.indicator.Visible = opt.option == option
+                    if opt.option == option then
+                        self.theme:Track(opt.label, "TextColor3", "accent")
+                    else
+                        self.theme:Track(opt.label, "TextColor3", "text1")
+                    end
+                end
+                
                 self:CloseDropdown()
                 if self.callback then
                     self.callback(option)
@@ -5973,13 +6038,20 @@ function Dropdown:Create()
         
         optBtn.MouseEnter:Connect(function()
             safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
+                    BackgroundTransparency = 0
+                }):Play()
+                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
+                    BackgroundColor3 = self.theme.colors.bg3
+                }):Play()
             end)
         end)
         
         optBtn.MouseLeave:Connect(function()
             safeCall(function()
-                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg2}):Play()
+                TweenService:Create(optBtn, TweenInfo.new(self.style.animationSpeed * 0.5), {
+                    BackgroundTransparency = 1
+                }):Play()
             end)
         end)
     end
@@ -5988,7 +6060,10 @@ function Dropdown:Create()
         safeCall(function()
             local absPos = selected.AbsolutePosition
             local absSize = selected.AbsoluteSize
-            list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+            
+            -- Position the list directly below the selected button
+            list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 6)
+            shadow.Position = UDim2.new(0, absPos.X - 4, 0, absPos.Y + absSize.Y + 6)
         end)
     end
     
@@ -6010,31 +6085,42 @@ function Dropdown:Create()
     
     selected.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg5}):Play()
+            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {
+                BackgroundColor3 = self.theme.colors.bg5
+            }):Play()
         end)
     end)
     
     selected.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            if not self.isOpen then
+                TweenService:Create(selected, TweenInfo.new(self.style.animationSpeed), {
+                    BackgroundColor3 = self.theme.colors.bg4
+                }):Play()
+            end
         end)
     end)
     
     container.MouseEnter:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg4}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {
+                BackgroundColor3 = self.theme.colors.bg4
+            }):Play()
         end)
     end)
     
     container.MouseLeave:Connect(function()
         safeCall(function()
-            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {BackgroundColor3 = self.theme.colors.bg3}):Play()
+            TweenService:Create(container, TweenInfo.new(self.style.animationSpeed), {
+                BackgroundColor3 = self.theme.colors.bg3
+            }):Play()
         end)
     end)
     
     self.updateListPosition = updateListPosition
     self.selected = selected
     
+    -- Click outside to close
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if not self.isOpen then return end
@@ -6063,16 +6149,78 @@ function Dropdown:OpenDropdown()
     safeCall(function()
         self.isOpen = true
         self.updateListPosition()
-        self.list.Visible = true
+        self.listContainer.Visible = true
         
         local absSize = self.selected.AbsoluteSize
         
-        TweenService:Create(self.list, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        -- Set initial state (collapsed from top)
+        self.list.Size = UDim2.new(0, absSize.X, 0, 0)
+        self.list.BackgroundTransparency = 1
+        if self.listStroke then
+            self.listStroke.Transparency = 1
+        end
+        self.shadow.ImageTransparency = 1
+        
+        -- Reset all option buttons
+        for _, opt in ipairs(self.optionButtons) do
+            opt.button.BackgroundTransparency = 1
+            opt.label.TextTransparency = 1
+            opt.indicator.BackgroundTransparency = 1
+        end
+        
+        -- Animate list expansion
+        local expandTween = TweenService:Create(self.list, 
+            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
             Size = UDim2.new(0, absSize.X, 0, self.listHeight),
             BackgroundTransparency = 0
+        })
+        
+        expandTween:Play()
+        
+        -- Animate shadow
+        TweenService:Create(self.shadow, 
+            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            ImageTransparency = 0.7,
+            Size = UDim2.new(0, absSize.X + 8, 0, self.listHeight + 8)
         }):Play()
         
-        TweenService:Create(self.arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 180}):Play()
+        -- Animate border
+        if self.listStroke then
+            TweenService:Create(self.listStroke, 
+                TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Transparency = 0.3
+            }):Play()
+        end
+        
+        -- Stagger fade-in for options
+        for i, opt in ipairs(self.optionButtons) do
+            local delay = self.style.animationSpeed * 0.3 + (i - 1) * 0.02
+            
+            task.wait(delay)
+            
+            TweenService:Create(opt.label, 
+                TweenInfo.new(self.style.animationSpeed * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                TextTransparency = 0
+            }):Play()
+            
+            if opt.indicator.Visible then
+                TweenService:Create(opt.indicator, 
+                    TweenInfo.new(self.style.animationSpeed * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundTransparency = 0
+                }):Play()
+            end
+        end
+        
+        -- Rotate arrow
+        TweenService:Create(self.arrow, 
+            TweenInfo.new(self.style.animationSpeed * 1.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Rotation = 180
+        }):Play()
+        
+        -- Keep selected button highlighted
+        TweenService:Create(self.selected, TweenInfo.new(self.style.animationSpeed), {
+            BackgroundColor3 = self.theme.colors.bg5
+        }):Play()
     end)
 end
 
@@ -6082,18 +6230,54 @@ function Dropdown:CloseDropdown()
         
         local absSize = self.selected.AbsoluteSize
         
-        local tween = TweenService:Create(self.list, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        -- Fade out options quickly
+        for i, opt in ipairs(self.optionButtons) do
+            TweenService:Create(opt.label, 
+                TweenInfo.new(self.style.animationSpeed * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                TextTransparency = 1
+            }):Play()
+            
+            TweenService:Create(opt.indicator, 
+                TweenInfo.new(self.style.animationSpeed * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                BackgroundTransparency = 1
+            }):Play()
+        end
+        
+        -- Collapse list
+        local collapseTween = TweenService:Create(self.list, 
+            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
             Size = UDim2.new(0, absSize.X, 0, 0),
             BackgroundTransparency = 1
         })
         
-        tween.Completed:Connect(function()
-            self.list.Visible = false
+        collapseTween.Completed:Connect(function()
+            self.listContainer.Visible = false
         end)
         
-        tween:Play()
+        collapseTween:Play()
         
-        TweenService:Create(self.arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
+        -- Animate shadow
+        TweenService:Create(self.shadow, 
+            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            ImageTransparency = 1
+        }):Play()
+        
+        -- Animate border
+        if self.listStroke then
+            TweenService:Create(self.listStroke, 
+                TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                Transparency = 1
+            }):Play()
+        end
+        
+        TweenService:Create(self.arrow, 
+            TweenInfo.new(self.style.animationSpeed * 1.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Rotation = 0
+        }):Play()
+        
+        TweenService:Create(self.selected, TweenInfo.new(self.style.animationSpeed), {
+            BackgroundColor3 = self.theme.colors.bg4
+        }):Play()
     end)
 end
 
@@ -6103,6 +6287,15 @@ function Dropdown:SetValue(value)
             self.value = value
             safeCall(function()
                 self.selectedLabel.Text = value
+                
+                for _, opt in ipairs(self.optionButtons) do
+                    opt.indicator.Visible = opt.option == value
+                    if opt.option == value then
+                        self.theme:Track(opt.label, "TextColor3", "accent")
+                    else
+                        self.theme:Track(opt.label, "TextColor3", "text1")
+                    end
+                end
             end)
             return self
         end
@@ -6122,7 +6315,6 @@ end
 function Dropdown:GetOptions()
     return self.options
 end
-
 local ColorPicker = setmetatable({}, {__index = Component})
 ColorPicker.__index = ColorPicker
 
@@ -6132,6 +6324,9 @@ function ColorPicker.new(parent, theme, style, window, text, default, callback)
     self.value = default or Color3.fromRGB(255, 255, 255)
     self.callback = callback
     self.h, self.s, self.v = self.value:ToHSV()
+    self.isOpen = false
+    self.draggingHue = false
+    self.draggingSV = false
     self:Create()
     return self
 end
@@ -6172,6 +6367,7 @@ function ColorPicker:Create()
     colorPreview.BackgroundColor3 = self.value
     colorPreview.BorderSizePixel = 0
     colorPreview.Text = ""
+    colorPreview.AutoButtonColor = false
     colorPreview.ZIndex = ZINDEX.Content
     colorPreview.Parent = container
     self.colorPreview = colorPreview
@@ -6186,13 +6382,16 @@ function ColorPicker:Create()
     previewStroke.Parent = colorPreview
     
     self.theme:Track(previewStroke, "Color", "border")
+    self.previewStroke = previewStroke
     
     local pickerFrame = Instance.new("Frame")
-    pickerFrame.Size = UDim2.new(0, 240, 0, 200)
+    pickerFrame.Size = UDim2.new(0, 0, 0, 0)
     pickerFrame.BackgroundColor3 = self.theme.colors.bg2
     pickerFrame.BorderSizePixel = 0
     pickerFrame.Visible = false
     pickerFrame.ZIndex = ZINDEX.ColorPicker
+    pickerFrame.BackgroundTransparency = 1
+    pickerFrame.ClipsDescendants = true
     pickerFrame.Parent = self.window.gui
     
     self.theme:Track(pickerFrame, "BackgroundColor3", "bg2")
@@ -6210,41 +6409,18 @@ function ColorPicker:Create()
     
     self.theme:Track(pickerStroke, "Color", "border")
     
-    local hueSlider = Instance.new("Frame")
-    hueSlider.Size = UDim2.new(1, -32, 0, 20)
-    hueSlider.Position = UDim2.new(0, 16, 0, 16)
-    hueSlider.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    hueSlider.BorderSizePixel = 0
-    hueSlider.ZIndex = ZINDEX.ColorPicker + 1
-    hueSlider.Parent = pickerFrame
-    
-    local hueCorner = Instance.new("UICorner")
-    hueCorner.CornerRadius = UDim.new(0, 4)
-    hueCorner.Parent = hueSlider
-    
-    local hueGradient = Instance.new("UIGradient")
-    hueGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-        ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
-        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
-        ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
-        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
-    }
-    hueGradient.Parent = hueSlider
-    
     local satValPicker = Instance.new("ImageButton")
-    satValPicker.Size = UDim2.new(1, -32, 0, 120)
-    satValPicker.Position = UDim2.new(0, 16, 0, 48)
-    satValPicker.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    satValPicker.Size = UDim2.new(1, -32, 1, -120)
+    satValPicker.Position = UDim2.new(0, 16, 0, 16)
+    satValPicker.BackgroundColor3 = Color3.fromHSV(self.h, 1, 1)
     satValPicker.BorderSizePixel = 0
+    satValPicker.AutoButtonColor = false
     satValPicker.ZIndex = ZINDEX.ColorPicker + 1
     satValPicker.Parent = pickerFrame
     self.satValPicker = satValPicker
     
     local svCorner = Instance.new("UICorner")
-    svCorner.CornerRadius = UDim.new(0, 4)
+    svCorner.CornerRadius = UDim.new(0, 6)
     svCorner.Parent = satValPicker
     
     local whiteMask = Instance.new("Frame")
@@ -6255,7 +6431,7 @@ function ColorPicker:Create()
     whiteMask.Parent = satValPicker
     
     local whiteCorner = Instance.new("UICorner")
-    whiteCorner.CornerRadius = UDim.new(0, 4)
+    whiteCorner.CornerRadius = UDim.new(0, 6)
     whiteCorner.Parent = whiteMask
     
     local whiteGradient = Instance.new("UIGradient")
@@ -6273,7 +6449,7 @@ function ColorPicker:Create()
     blackMask.Parent = satValPicker
     
     local blackCorner = Instance.new("UICorner")
-    blackCorner.CornerRadius = UDim.new(0, 4)
+    blackCorner.CornerRadius = UDim.new(0, 6)
     blackCorner.Parent = blackMask
     
     local blackGradient = Instance.new("UIGradient")
@@ -6284,78 +6460,262 @@ function ColorPicker:Create()
     }
     blackGradient.Parent = blackMask
     
-    local function updateColor()
+    local svCursor = Instance.new("Frame")
+    svCursor.Size = UDim2.new(0, 12, 0, 12)
+    svCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+    svCursor.Position = UDim2.new(self.s, 0, 1 - self.v, 0)
+    svCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    svCursor.BorderSizePixel = 0
+    svCursor.ZIndex = ZINDEX.ColorPicker + 4
+    svCursor.Parent = satValPicker
+    
+    local svCursorCorner = Instance.new("UICorner")
+    svCursorCorner.CornerRadius = UDim.new(1, 0)
+    svCursorCorner.Parent = svCursor
+    
+    local svCursorStroke = Instance.new("UIStroke")
+    svCursorStroke.Color = Color3.fromRGB(0, 0, 0)
+    svCursorStroke.Thickness = 2
+    svCursorStroke.Parent = svCursor
+    
+    self.svCursor = svCursor
+    
+    local hueSlider = Instance.new("Frame")
+    hueSlider.Size = UDim2.new(1, -32, 0, 24)
+    hueSlider.Position = UDim2.new(0, 16, 1, -88)
+    hueSlider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    hueSlider.BorderSizePixel = 0
+    hueSlider.ZIndex = ZINDEX.ColorPicker + 1
+    hueSlider.Parent = pickerFrame
+    self.hueSlider = hueSlider
+    
+    local hueCorner = Instance.new("UICorner")
+    hueCorner.CornerRadius = UDim.new(0, 6)
+    hueCorner.Parent = hueSlider
+    
+    local hueGradient = Instance.new("UIGradient")
+    hueGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+        ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+    }
+    hueGradient.Parent = hueSlider
+    
+    local hueCursor = Instance.new("Frame")
+    hueCursor.Size = UDim2.new(0, 4, 1, 4)
+    hueCursor.AnchorPoint = Vector2.new(0.5, 0.5)
+    hueCursor.Position = UDim2.new(self.h, 0, 0.5, 0)
+    hueCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    hueCursor.BorderSizePixel = 0
+    hueCursor.ZIndex = ZINDEX.ColorPicker + 2
+    hueCursor.Parent = hueSlider
+    
+    local hueCursorCorner = Instance.new("UICorner")
+    hueCursorCorner.CornerRadius = UDim.new(0, 2)
+    hueCursorCorner.Parent = hueCursor
+    
+    local hueCursorStroke = Instance.new("UIStroke")
+    hueCursorStroke.Color = Color3.fromRGB(0, 0, 0)
+    hueCursorStroke.Thickness = 1
+    hueCursorStroke.Parent = hueCursor
+    
+    self.hueCursor = hueCursor
+    
+    local inputContainer = Instance.new("Frame")
+    inputContainer.Size = UDim2.new(1, -32, 0, 40)
+    inputContainer.Position = UDim2.new(0, 16, 1, -56)
+    inputContainer.BackgroundTransparency = 1
+    inputContainer.ZIndex = ZINDEX.ColorPicker + 1
+    inputContainer.Parent = pickerFrame
+    
+    local hexLabel = Instance.new("TextLabel")
+    hexLabel.Size = UDim2.new(0, 30, 0, 16)
+    hexLabel.Position = UDim2.new(0, 0, 0, 0)
+    hexLabel.BackgroundTransparency = 1
+    hexLabel.Text = "HEX"
+    hexLabel.TextColor3 = self.theme.colors.text2
+    hexLabel.TextSize = 10
+    hexLabel.Font = self.style.fontBody
+    hexLabel.TextXAlignment = Enum.TextXAlignment.Left
+    hexLabel.ZIndex = ZINDEX.ColorPicker + 1
+    hexLabel.Parent = inputContainer
+    
+    self.theme:Track(hexLabel, "TextColor3", "text2")
+    
+    local hexInput = Instance.new("TextBox")
+    hexInput.Size = UDim2.new(0, 90, 0, 24)
+    hexInput.Position = UDim2.new(0, 0, 0, 16)
+    hexInput.BackgroundColor3 = self.theme.colors.bg3
+    hexInput.BorderSizePixel = 0
+    hexInput.Text = self:ColorToHex(self.value)
+    hexInput.TextColor3 = self.theme.colors.text1
+    hexInput.TextSize = 11
+    hexInput.Font = self.style.fontBody
+    hexInput.ClearTextOnFocus = false
+    hexInput.ZIndex = ZINDEX.ColorPicker + 1
+    hexInput.Parent = inputContainer
+    
+    self.theme:Track(hexInput, "BackgroundColor3", "bg3")
+    self.theme:Track(hexInput, "TextColor3", "text1")
+    self.hexInput = hexInput
+    
+    local hexCorner = Instance.new("UICorner")
+    hexCorner.CornerRadius = UDim.new(0, 4)
+    hexCorner.Parent = hexInput
+    
+    local rgbContainer = Instance.new("Frame")
+    rgbContainer.Size = UDim2.new(1, -100, 0, 40)
+    rgbContainer.Position = UDim2.new(0, 100, 0, 0)
+    rgbContainer.BackgroundTransparency = 1
+    rgbContainer.ZIndex = ZINDEX.ColorPicker + 1
+    rgbContainer.Parent = inputContainer
+    
+    local function createRGBInput(text, position, getValue, setValue)
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0, 15, 0, 16)
+        label.Position = UDim2.new(position, 0, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = self.theme.colors.text2
+        label.TextSize = 10
+        label.Font = self.style.fontBody
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = ZINDEX.ColorPicker + 1
+        label.Parent = rgbContainer
+        
+        self.theme:Track(label, "TextColor3", "text2")
+        
+        local input = Instance.new("TextBox")
+        input.Size = UDim2.new(0, 40, 0, 24)
+        input.Position = UDim2.new(position, 0, 0, 16)
+        input.BackgroundColor3 = self.theme.colors.bg3
+        input.BorderSizePixel = 0
+        input.Text = tostring(getValue())
+        input.TextColor3 = self.theme.colors.text1
+        input.TextSize = 11
+        input.Font = self.style.fontBody
+        input.ClearTextOnFocus = false
+        input.ZIndex = ZINDEX.ColorPicker + 1
+        input.Parent = rgbContainer
+        
+        self.theme:Track(input, "BackgroundColor3", "bg3")
+        self.theme:Track(input, "TextColor3", "text1")
+        
+        local inputCorner = Instance.new("UICorner")
+        inputCorner.CornerRadius = UDim.new(0, 4)
+        inputCorner.Parent = input
+        
+        input.FocusLost:Connect(function()
+            local value = tonumber(input.Text)
+            if value then
+                setValue(math.clamp(value, 0, 255))
+            else
+                input.Text = tostring(getValue())
+            end
+        end)
+        
+        return input
+    end
+    
+    local r, g, b = math.floor(self.value.R * 255), math.floor(self.value.G * 255), math.floor(self.value.B * 255)
+    
+    self.rInput = createRGBInput("R", 0, function() return math.floor(self.value.R * 255) end, function(val)
+        local _, gVal, bVal = math.floor(self.value.G * 255), math.floor(self.value.B * 255)
+        self:SetValue(Color3.fromRGB(val, gVal, bVal))
+    end)
+    
+    self.gInput = createRGBInput("G", 0.33, function() return math.floor(self.value.G * 255) end, function(val)
+        local rVal, _, bVal = math.floor(self.value.R * 255), math.floor(self.value.B * 255)
+        self:SetValue(Color3.fromRGB(rVal, val, bVal))
+    end)
+    
+    self.bInput = createRGBInput("B", 0.66, function() return math.floor(self.value.B * 255) end, function(val)
+        local rVal, gVal = math.floor(self.value.R * 255), math.floor(self.value.G * 255)
+        self:SetValue(Color3.fromRGB(rVal, gVal, val))
+    end)
+    
+    hexInput.FocusLost:Connect(function()
+        local color = self:HexToColor(hexInput.Text)
+        if color then
+            self:SetValue(color)
+        else
+            hexInput.Text = self:ColorToHex(self.value)
+        end
+    end)
+    
+    local function updateColor(skipCallback)
         safeCall(function()
             local newColor = Color3.fromHSV(self.h, self.s, self.v)
             self.value = newColor
             colorPreview.BackgroundColor3 = newColor
             satValPicker.BackgroundColor3 = Color3.fromHSV(self.h, 1, 1)
-            if self.callback then
+            
+            self.hexInput.Text = self:ColorToHex(newColor)
+            self.rInput.Text = tostring(math.floor(newColor.R * 255))
+            self.gInput.Text = tostring(math.floor(newColor.G * 255))
+            self.bInput.Text = tostring(math.floor(newColor.B * 255))
+            
+            if not skipCallback and self.callback then
                 self.callback(newColor)
             end
             self.Changed:Fire(newColor)
         end)
     end
     
-    hueSlider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local function update(input)
-                safeCall(function()
-                    local pos = math.clamp((input.Position.X - hueSlider.AbsolutePosition.X) / hueSlider.AbsoluteSize.X, 0, 1)
-                    self.h = pos
-                    updateColor()
-                end)
-            end
-            update(input)
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    connection:Disconnect()
-                end
-            end)
-            local moveConnection
-            moveConnection = UserInputService.InputChanged:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
-                    update(input2)
-                end
-            end)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    moveConnection:Disconnect()
-                end
-            end)
-        end
-    end)
+    self.updateColor = updateColor
+    
+    local function updateHue(input)
+        safeCall(function()
+            local pos = math.clamp((input.Position.X - hueSlider.AbsolutePosition.X) / hueSlider.AbsoluteSize.X, 0, 1)
+            self.h = pos
+            hueCursor.Position = UDim2.new(pos, 0, 0.5, 0)
+            updateColor()
+        end)
+    end
+    
+    local function updateSV(input)
+        safeCall(function()
+            local posX = math.clamp((input.Position.X - satValPicker.AbsolutePosition.X) / satValPicker.AbsoluteSize.X, 0, 1)
+            local posY = math.clamp((input.Position.Y - satValPicker.AbsolutePosition.Y) / satValPicker.AbsoluteSize.Y, 0, 1)
+            self.s = posX
+            self.v = 1 - posY
+            svCursor.Position = UDim2.new(posX, 0, posY, 0)
+            updateColor()
+        end)
+    end
     
     satValPicker.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local function update(input)
-                safeCall(function()
-                    local posX = math.clamp((input.Position.X - satValPicker.AbsolutePosition.X) / satValPicker.AbsoluteSize.X, 0, 1)
-                    local posY = math.clamp((input.Position.Y - satValPicker.AbsolutePosition.Y) / satValPicker.AbsoluteSize.Y, 0, 1)
-                    self.s = posX
-                    self.v = 1 - posY
-                    updateColor()
-                end)
+            self.draggingSV = true
+            updateSV(input)
+        end
+    end)
+    
+    hueSlider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self.draggingHue = true
+            updateHue(input)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if self.draggingSV then
+                updateSV(input)
+            elseif self.draggingHue then
+                updateHue(input)
             end
-            update(input)
-            local connection
-            connection = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    connection:Disconnect()
-                end
-            end)
-            local moveConnection
-            moveConnection = UserInputService.InputChanged:Connect(function(input2)
-                if input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch then
-                    update(input2)
-                end
-            end)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    moveConnection:Disconnect()
-                end
-            end)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self.draggingSV = false
+            self.draggingHue = false
         end
     end)
     
@@ -6363,24 +6723,28 @@ function ColorPicker:Create()
         safeCall(function()
             local absPos = colorPreview.AbsolutePosition
             local absSize = colorPreview.AbsoluteSize
-            pickerFrame.Position = UDim2.new(0, absPos.X + absSize.X - 240, 0, absPos.Y + absSize.Y + 4)
+            pickerFrame.Position = UDim2.new(0, absPos.X + absSize.X - 280, 0, absPos.Y + absSize.Y + 4)
         end)
     end
     
+    self.updatePickerPosition = updatePickerPosition
+    
     colorPreview.MouseButton1Click:Connect(function()
         safeCall(function()
-            pickerFrame.Visible = not pickerFrame.Visible
-            if pickerFrame.Visible then
-                updatePickerPosition()
+            if self.isOpen then
+                self:ClosePicker()
+            else
+                self:OpenPicker()
             end
         end)
     end)
     
     if isMobile() then
         colorPreview.TouchTap:Connect(function()
-            pickerFrame.Visible = not pickerFrame.Visible
-            if pickerFrame.Visible then
-                updatePickerPosition()
+            if self.isOpen then
+                self:ClosePicker()
+            else
+                self:OpenPicker()
             end
         end)
     end
@@ -6411,22 +6775,77 @@ function ColorPicker:Create()
     
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if not self.isOpen then return end
+            
             local mousePos = UserInputService:GetMouseLocation()
             local pickerPos = pickerFrame.AbsolutePosition
             local pickerSize = pickerFrame.AbsoluteSize
             
-            if pickerFrame.Visible and (mousePos.X < pickerPos.X or mousePos.X > pickerPos.X + pickerSize.X or 
-               mousePos.Y < pickerPos.Y or mousePos.Y > pickerPos.Y + pickerSize.Y) then
-                local previewPos = colorPreview.AbsolutePosition
-                local previewSize = colorPreview.AbsoluteSize
-                
-                if not (mousePos.X >= previewPos.X and mousePos.X <= previewPos.X + previewSize.X and
-                       mousePos.Y >= previewPos.Y and mousePos.Y <= previewPos.Y + previewSize.Y) then
-                    pickerFrame.Visible = false
-                end
+            local isInPicker = mousePos.X >= pickerPos.X and mousePos.X <= pickerPos.X + pickerSize.X and 
+                              mousePos.Y >= pickerPos.Y and mousePos.Y <= pickerPos.Y + pickerSize.Y
+            
+            local previewPos = colorPreview.AbsolutePosition
+            local previewSize = colorPreview.AbsoluteSize
+            
+            local isInPreview = mousePos.X >= previewPos.X and mousePos.X <= previewPos.X + previewSize.X and
+                               mousePos.Y >= previewPos.Y and mousePos.Y <= previewPos.Y + previewSize.Y
+            
+            if not isInPicker and not isInPreview then
+                self:ClosePicker()
             end
         end
     end)
+end
+
+function ColorPicker:OpenPicker()
+    safeCall(function()
+        self.isOpen = true
+        self.updatePickerPosition()
+        self.pickerFrame.Visible = true
+        
+        TweenService:Create(self.pickerFrame, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 280, 0, 280),
+            BackgroundTransparency = 0
+        }):Play()
+    end)
+end
+
+function ColorPicker:ClosePicker()
+    safeCall(function()
+        self.isOpen = false
+        
+        local tween = TweenService:Create(self.pickerFrame, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 280, 0, 0),
+            BackgroundTransparency = 1
+        })
+        
+        tween.Completed:Connect(function()
+            self.pickerFrame.Visible = false
+        end)
+        
+        tween:Play()
+    end)
+end
+
+function ColorPicker:ColorToHex(color)
+    return string.format("#%02X%02X%02X", 
+        math.floor(color.R * 255),
+        math.floor(color.G * 255),
+        math.floor(color.B * 255)
+    )
+end
+
+function ColorPicker:HexToColor(hex)
+    hex = hex:gsub("#", "")
+    if #hex == 6 then
+        local r = tonumber(hex:sub(1, 2), 16)
+        local g = tonumber(hex:sub(3, 4), 16)
+        local b = tonumber(hex:sub(5, 6), 16)
+        if r and g and b then
+            return Color3.fromRGB(r, g, b)
+        end
+    end
+    return nil
 end
 
 function ColorPicker:SetValue(color)
@@ -6435,6 +6854,12 @@ function ColorPicker:SetValue(color)
     safeCall(function()
         self.colorPreview.BackgroundColor3 = color
         self.satValPicker.BackgroundColor3 = Color3.fromHSV(self.h, 1, 1)
+        self.svCursor.Position = UDim2.new(self.s, 0, 1 - self.v, 0)
+        self.hueCursor.Position = UDim2.new(self.h, 0, 0.5, 0)
+        self.hexInput.Text = self:ColorToHex(color)
+        self.rInput.Text = tostring(math.floor(color.R * 255))
+        self.gInput.Text = tostring(math.floor(color.G * 255))
+        self.bInput.Text = tostring(math.floor(color.B * 255))
     end)
     return self
 end
