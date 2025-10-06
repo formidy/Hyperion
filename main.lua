@@ -5799,8 +5799,6 @@ function MultilineTextBox:GetValue()
     return self.value
 end
 
-
-
 local Dropdown = setmetatable({}, {__index = Component})
 Dropdown.__index = Dropdown
 
@@ -5810,6 +5808,7 @@ function Dropdown.new(parent, theme, style, window, text, options, default, call
     self.options = options or {}
     self.value = default or (options and options[1]) or "Select"
     self.callback = callback
+    self.isOpen = false
     self:Create()
     return self
 end
@@ -5890,8 +5889,10 @@ function Dropdown:Create()
     self.theme:Track(arrow, "TextColor3", "text3")
     self.arrow = arrow
     
+    local listHeight = math.min(#self.options * 36, 180)
+    
     local list = Instance.new("ScrollingFrame")
-    list.Size = UDim2.new(0, 0, 0, math.min(#self.options * 36, 180))
+    list.Size = UDim2.new(0, 0, 0, 0)
     list.BackgroundColor3 = self.theme.colors.bg2
     list.BorderSizePixel = 0
     list.Visible = false
@@ -5899,10 +5900,14 @@ function Dropdown:Create()
     list.ScrollBarThickness = 4
     list.ScrollBarImageColor3 = self.theme.colors.text3
     list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
+    list.BackgroundTransparency = 1
+    list.ClipsDescendants = true
     list.Parent = self.window.gui
     
     self.theme:Track(list, "BackgroundColor3", "bg2")
+    self.theme:Track(list, "ScrollBarImageColor3", "text3")
     self.list = list
+    self.listHeight = listHeight
     table.insert(self.modalElements, list)
     
     local listCorner = Instance.new("UICorner")
@@ -5948,30 +5953,22 @@ function Dropdown:Create()
         
         self.theme:Track(optLabel, "TextColor3", "text1")
         
-        optBtn.MouseButton1Click:Connect(function()
+        local function selectOption()
             safeCall(function()
                 self.value = option
                 selectedLabel.Text = option
-                list.Visible = false
-                TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
+                self:CloseDropdown()
                 if self.callback then
                     self.callback(option)
                 end
                 self.Changed:Fire(option)
             end)
-        end)
+        end
+        
+        optBtn.MouseButton1Click:Connect(selectOption)
         
         if isMobile() then
-            optBtn.TouchTap:Connect(function()
-                self.value = option
-                selectedLabel.Text = option
-                list.Visible = false
-                TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
-                if self.callback then
-                    self.callback(option)
-                end
-                self.Changed:Fire(option)
-            end)
+            optBtn.TouchTap:Connect(selectOption)
         end
         
         optBtn.MouseEnter:Connect(function()
@@ -5992,30 +5989,23 @@ function Dropdown:Create()
             local absPos = selected.AbsolutePosition
             local absSize = selected.AbsoluteSize
             list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
-            list.Size = UDim2.new(0, absSize.X, 0, math.min(#self.options * 36, 180))
         end)
     end
     
-    selected.MouseButton1Click:Connect(function()
+    local function toggleDropdown()
         safeCall(function()
-            list.Visible = not list.Visible
-            if list.Visible then
-                updateListPosition()
+            if self.isOpen then
+                self:CloseDropdown()
+            else
+                self:OpenDropdown()
             end
-            local rotation = list.Visible and 180 or 0
-            TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = rotation}):Play()
         end)
-    end)
+    end
+    
+    selected.MouseButton1Click:Connect(toggleDropdown)
     
     if isMobile() then
-        selected.TouchTap:Connect(function()
-            list.Visible = not list.Visible
-            if list.Visible then
-                updateListPosition()
-            end
-            local rotation = list.Visible and 180 or 0
-            TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = rotation}):Play()
-        end)
+        selected.TouchTap:Connect(toggleDropdown)
     end
     
     selected.MouseEnter:Connect(function()
@@ -6042,24 +6032,68 @@ function Dropdown:Create()
         end)
     end)
     
-    self.window.gui.InputBegan:Connect(function(input)
+    self.updateListPosition = updateListPosition
+    self.selected = selected
+    
+    UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if not self.isOpen then return end
+            
             local mousePos = UserInputService:GetMouseLocation()
             local listPos = list.AbsolutePosition
             local listSize = list.AbsoluteSize
             
-            if list.Visible and (mousePos.X < listPos.X or mousePos.X > listPos.X + listSize.X or 
-               mousePos.Y < listPos.Y or mousePos.Y > listPos.Y + listSize.Y) then
-                local selectedPos = selected.AbsolutePosition
-                local selectedSize = selected.AbsoluteSize
-                
-                if not (mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
-                       mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y) then
-                    list.Visible = false
-                    TweenService:Create(arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
-                end
+            local isInList = mousePos.X >= listPos.X and mousePos.X <= listPos.X + listSize.X and 
+                            mousePos.Y >= listPos.Y and mousePos.Y <= listPos.Y + listSize.Y
+            
+            local selectedPos = selected.AbsolutePosition
+            local selectedSize = selected.AbsoluteSize
+            
+            local isInSelected = mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
+                                mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y
+            
+            if not isInList and not isInSelected then
+                self:CloseDropdown()
             end
         end
+    end)
+end
+
+function Dropdown:OpenDropdown()
+    safeCall(function()
+        self.isOpen = true
+        self.updateListPosition()
+        self.list.Visible = true
+        
+        local absSize = self.selected.AbsoluteSize
+        
+        TweenService:Create(self.list, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, absSize.X, 0, self.listHeight),
+            BackgroundTransparency = 0
+        }):Play()
+        
+        TweenService:Create(self.arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 180}):Play()
+    end)
+end
+
+function Dropdown:CloseDropdown()
+    safeCall(function()
+        self.isOpen = false
+        
+        local absSize = self.selected.AbsoluteSize
+        
+        local tween = TweenService:Create(self.list, TweenInfo.new(self.style.animationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, absSize.X, 0, 0),
+            BackgroundTransparency = 1
+        })
+        
+        tween.Completed:Connect(function()
+            self.list.Visible = false
+        end)
+        
+        tween:Play()
+        
+        TweenService:Create(self.arrow, TweenInfo.new(self.style.animationSpeed), {Rotation = 0}):Play()
     end)
 end
 
