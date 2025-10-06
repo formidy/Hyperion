@@ -6409,7 +6409,7 @@ function ColorPicker:Create()
         end)
     end)
     
-    self.window.gui.InputBegan:Connect(function(input)
+    UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local mousePos = UserInputService:GetMouseLocation()
             local pickerPos = pickerFrame.AbsolutePosition
