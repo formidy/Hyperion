@@ -1,5 +1,5 @@
 -- Hyperion UI Library v1.0
--- ui test
+-- Fixed: Modal elements above all UI + Automatic style switching
 
 local HyperionUI = {}
 HyperionUI.__index = HyperionUI
@@ -258,13 +258,15 @@ end
 local Component = {}
 Component.__index = Component
 
-function Component.new(parent, theme, style)
+function Component.new(parent, theme, style, window)
     local self = setmetatable({}, Component)
     self.parent = parent
     self.theme = theme
     self.style = style
+    self.window = window
     self.instance = nil
     self.destroyed = false
+    self.modalElements = {}
     return self
 end
 
@@ -272,6 +274,11 @@ function Component:Destroy()
     if not self.destroyed then
         self.destroyed = true
         safeCall(function()
+            for _, modal in ipairs(self.modalElements) do
+                if modal and modal.Parent then
+                    modal:Destroy()
+                end
+            end
             if self.instance then
                 self.instance:Destroy()
             end
@@ -283,8 +290,8 @@ end
 local Toggle = setmetatable({}, {__index = Component})
 Toggle.__index = Toggle
 
-function Toggle.new(parent, theme, style, text, default, callback)
-    local self = setmetatable(Component.new(parent, theme, style), Toggle)
+function Toggle.new(parent, theme, style, window, text, default, callback)
+    local self = setmetatable(Component.new(parent, theme, style, window), Toggle)
     self.text = text
     self.value = default or false
     self.callback = callback
@@ -404,8 +411,8 @@ end
 local Slider = setmetatable({}, {__index = Component})
 Slider.__index = Slider
 
-function Slider.new(parent, theme, style, text, min, max, default, increment, callback)
-    local self = setmetatable(Component.new(parent, theme, style), Slider)
+function Slider.new(parent, theme, style, window, text, min, max, default, increment, callback)
+    local self = setmetatable(Component.new(parent, theme, style, window), Slider)
     self.text = text
     self.min = min
     self.max = max
@@ -603,8 +610,8 @@ end
 local Button = setmetatable({}, {__index = Component})
 Button.__index = Button
 
-function Button.new(parent, theme, style, text, callback, color)
-    local self = setmetatable(Component.new(parent, theme, style), Button)
+function Button.new(parent, theme, style, window, text, callback, color)
+    local self = setmetatable(Component.new(parent, theme, style, window), Button)
     self.text = text
     self.callback = callback
     self.color = color
@@ -676,8 +683,8 @@ end
 local Dropdown = setmetatable({}, {__index = Component})
 Dropdown.__index = Dropdown
 
-function Dropdown.new(parent, theme, style, text, options, default, callback)
-    local self = setmetatable(Component.new(parent, theme, style), Dropdown)
+function Dropdown.new(parent, theme, style, window, text, options, default, callback)
+    local self = setmetatable(Component.new(parent, theme, style, window), Dropdown)
     self.text = text
     self.options = options or {}
     self.value = default or (options and options[1]) or "Select"
@@ -762,9 +769,9 @@ function Dropdown:Create()
     self.theme:Track(arrow, "TextColor3", "text3")
     self.arrow = arrow
     
+    -- Create dropdown list parented to ScreenGui for proper ZIndex
     local list = Instance.new("ScrollingFrame")
-    list.Size = UDim2.new(1, 0, 0, math.min(#self.options * 36, 180))
-    list.Position = UDim2.new(0, 0, 1, 4)
+    list.Size = UDim2.new(0, 0, 0, math.min(#self.options * 36, 180))
     list.BackgroundColor3 = self.theme.colors.bg2
     list.BorderSizePixel = 0
     list.Visible = false
@@ -772,10 +779,11 @@ function Dropdown:Create()
     list.ScrollBarThickness = 4
     list.ScrollBarImageColor3 = self.theme.colors.text3
     list.CanvasSize = UDim2.new(0, 0, 0, #self.options * 36)
-    list.Parent = selected
+    list.Parent = self.window.gui  -- Parent to ScreenGui!
     
     self.theme:Track(list, "BackgroundColor3", "bg2")
     self.list = list
+    table.insert(self.modalElements, list)
     
     local listCorner = Instance.new("UICorner")
     listCorner.CornerRadius = UDim.new(0, self.style.cornerRadius - 2)
@@ -845,9 +853,22 @@ function Dropdown:Create()
         end)
     end
     
+    -- Update position when shown
+    local function updateListPosition()
+        safeCall(function()
+            local absPos = selected.AbsolutePosition
+            local absSize = selected.AbsoluteSize
+            list.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+            list.Size = UDim2.new(0, absSize.X, 0, math.min(#self.options * 36, 180))
+        end)
+    end
+    
     selected.MouseButton1Click:Connect(function()
         safeCall(function()
             list.Visible = not list.Visible
+            if list.Visible then
+                updateListPosition()
+            end
             local rotation = list.Visible and 180 or 0
             TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = rotation}):Play()
         end)
@@ -876,6 +897,27 @@ function Dropdown:Create()
             TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
+    
+    -- Close dropdown when clicking outside
+    self.window.gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mousePos = UserInputService:GetMouseLocation()
+            local listPos = list.AbsolutePosition
+            local listSize = list.AbsoluteSize
+            
+            if list.Visible and (mousePos.X < listPos.X or mousePos.X > listPos.X + listSize.X or 
+               mousePos.Y < listPos.Y or mousePos.Y > listPos.Y + listSize.Y) then
+                local selectedPos = selected.AbsolutePosition
+                local selectedSize = selected.AbsoluteSize
+                
+                if not (mousePos.X >= selectedPos.X and mousePos.X <= selectedPos.X + selectedSize.X and
+                       mousePos.Y >= selectedPos.Y and mousePos.Y <= selectedPos.Y + selectedSize.Y) then
+                    list.Visible = false
+                    TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = 0}):Play()
+                end
+            end
+        end
+    end)
 end
 
 function Dropdown:SetValue(value)
@@ -895,8 +937,8 @@ end
 local ColorPicker = setmetatable({}, {__index = Component})
 ColorPicker.__index = ColorPicker
 
-function ColorPicker.new(parent, theme, style, text, default, callback)
-    local self = setmetatable(Component.new(parent, theme, style), ColorPicker)
+function ColorPicker.new(parent, theme, style, window, text, default, callback)
+    local self = setmetatable(Component.new(parent, theme, style, window), ColorPicker)
     self.text = text
     self.value = default or Color3.fromRGB(255, 255, 255)
     self.callback = callback
@@ -956,17 +998,18 @@ function ColorPicker:Create()
     
     self.theme:Track(previewStroke, "Color", "border")
     
+    -- Create picker frame parented to ScreenGui for proper ZIndex
     local pickerFrame = Instance.new("Frame")
     pickerFrame.Size = UDim2.new(0, 240, 0, 200)
-    pickerFrame.Position = UDim2.new(1, -240, 1, 4)
     pickerFrame.BackgroundColor3 = self.theme.colors.bg2
     pickerFrame.BorderSizePixel = 0
     pickerFrame.Visible = false
     pickerFrame.ZIndex = ZINDEX.ColorPicker
-    pickerFrame.Parent = colorPreview
+    pickerFrame.Parent = self.window.gui  -- Parent to ScreenGui!
     
     self.theme:Track(pickerFrame, "BackgroundColor3", "bg2")
     self.pickerFrame = pickerFrame
+    table.insert(self.modalElements, pickerFrame)
     
     local pickerCorner = Instance.new("UICorner")
     pickerCorner.CornerRadius = UDim.new(0, self.style.cornerRadius)
@@ -1030,7 +1073,7 @@ function ColorPicker:Create()
     local whiteGradient = Instance.new("UIGradient")
     whiteGradient.Transparency = NumberSequence.new{
         NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1)
+        ColorSequenceKeypoint.new(1, 1)
     }
     whiteGradient.Parent = whiteMask
     
@@ -1127,9 +1170,21 @@ function ColorPicker:Create()
         end
     end)
     
+    -- Update position when shown
+    local function updatePickerPosition()
+        safeCall(function()
+            local absPos = colorPreview.AbsolutePosition
+            local absSize = colorPreview.AbsoluteSize
+            pickerFrame.Position = UDim2.new(0, absPos.X + absSize.X - 240, 0, absPos.Y + absSize.Y + 4)
+        end)
+    end
+    
     colorPreview.MouseButton1Click:Connect(function()
         safeCall(function()
             pickerFrame.Visible = not pickerFrame.Visible
+            if pickerFrame.Visible then
+                updatePickerPosition()
+            end
         end)
     end)
     
@@ -1156,6 +1211,26 @@ function ColorPicker:Create()
             TweenService:Create(container, TweenInfo.new(0.2), {BackgroundColor3 = self.theme.colors.bg3}):Play()
         end)
     end)
+    
+    -- Close picker when clicking outside
+    self.window.gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mousePos = UserInputService:GetMouseLocation()
+            local pickerPos = pickerFrame.AbsolutePosition
+            local pickerSize = pickerFrame.AbsoluteSize
+            
+            if pickerFrame.Visible and (mousePos.X < pickerPos.X or mousePos.X > pickerPos.X + pickerSize.X or 
+               mousePos.Y < pickerPos.Y or mousePos.Y > pickerPos.Y + pickerSize.Y) then
+                local previewPos = colorPreview.AbsolutePosition
+                local previewSize = colorPreview.AbsoluteSize
+                
+                if not (mousePos.X >= previewPos.X and mousePos.X <= previewPos.X + previewSize.X and
+                       mousePos.Y >= previewPos.Y and mousePos.Y <= previewPos.Y + previewSize.Y) then
+                    pickerFrame.Visible = false
+                end
+            end
+        end
+    end)
 end
 
 function ColorPicker:SetValue(color)
@@ -1171,8 +1246,8 @@ end
 local TextBox = setmetatable({}, {__index = Component})
 TextBox.__index = TextBox
 
-function TextBox.new(parent, theme, style, text, placeholder, callback)
-    local self = setmetatable(Component.new(parent, theme, style), TextBox)
+function TextBox.new(parent, theme, style, window, text, placeholder, callback)
+    local self = setmetatable(Component.new(parent, theme, style, window), TextBox)
     self.text = text
     self.placeholder = placeholder or ""
     self.value = ""
@@ -1282,11 +1357,12 @@ end
 local Section = {}
 Section.__index = Section
 
-function Section.new(parent, theme, style, title)
+function Section.new(parent, theme, style, window, title)
     local self = setmetatable({}, Section)
     self.parent = parent
     self.theme = theme
     self.style = style
+    self.window = window
     self.title = title
     self.components = {}
     self:Create()
@@ -1359,37 +1435,37 @@ function Section:Create()
 end
 
 function Section:AddToggle(text, default, callback)
-    local toggle = Toggle.new(self.content, self.theme, self.style, text, default, callback)
+    local toggle = Toggle.new(self.content, self.theme, self.style, self.window, text, default, callback)
     table.insert(self.components, toggle)
     return toggle
 end
 
 function Section:AddSlider(text, min, max, default, increment, callback)
-    local slider = Slider.new(self.content, self.theme, self.style, text, min, max, default, increment, callback)
+    local slider = Slider.new(self.content, self.theme, self.style, self.window, text, min, max, default, increment, callback)
     table.insert(self.components, slider)
     return slider
 end
 
 function Section:AddButton(text, callback, color)
-    local button = Button.new(self.content, self.theme, self.style, text, callback, color)
+    local button = Button.new(self.content, self.theme, self.style, self.window, text, callback, color)
     table.insert(self.components, button)
     return button
 end
 
 function Section:AddDropdown(text, options, default, callback)
-    local dropdown = Dropdown.new(self.content, self.theme, self.style, text, options, default, callback)
+    local dropdown = Dropdown.new(self.content, self.theme, self.style, self.window, text, options, default, callback)
     table.insert(self.components, dropdown)
     return dropdown
 end
 
 function Section:AddColorPicker(text, default, callback)
-    local colorPicker = ColorPicker.new(self.content, self.theme, self.style, text, default, callback)
+    local colorPicker = ColorPicker.new(self.content, self.theme, self.style, self.window, text, default, callback)
     table.insert(self.components, colorPicker)
     return colorPicker
 end
 
 function Section:AddTextBox(text, placeholder, callback)
-    local textBox = TextBox.new(self.content, self.theme, self.style, text, placeholder, callback)
+    local textBox = TextBox.new(self.content, self.theme, self.style, self.window, text, placeholder, callback)
     table.insert(self.components, textBox)
     return textBox
 end
@@ -1411,11 +1487,12 @@ end
 local Page = {}
 Page.__index = Page
 
-function Page.new(parent, theme, style, title)
+function Page.new(parent, theme, style, window, title)
     local self = setmetatable({}, Page)
     self.parent = parent
     self.theme = theme
     self.style = style
+    self.window = window
     self.title = title
     self.sections = {}
     self:Create()
@@ -1440,7 +1517,7 @@ function Page:Create()
     
     local pagePadding = Instance.new("UIPadding")
     pagePadding.PaddingLeft = UDim.new(0, self.style.contentPadding)
-    pagePadding.PaddingRight = UDim.new(0, self.style.contentPadding)
+    pagePadding.PaddingRight = UDim2.new(0, self.style.contentPadding)
     pagePadding.PaddingTop = UDim.new(0, 8)
     pagePadding.PaddingBottom = UDim.new(0, self.style.contentPadding)
     pagePadding.Parent = page
@@ -1452,7 +1529,7 @@ function Page:Create()
 end
 
 function Page:AddSection(title)
-    local section = Section.new(self.instance, self.theme, self.style, title)
+    local section = Section.new(self.instance, self.theme, self.style, self.window, title)
     table.insert(self.sections, section)
     return section
 end
@@ -1482,7 +1559,7 @@ function Page:Destroy()
     end)
 end
 
--- Window Class
+-- Window Class (continued in next message due to length)
 local Window = {}
 Window.__index = Window
 
@@ -1860,7 +1937,7 @@ function Window:SetupDragging()
 end
 
 function Window:AddPage(title)
-    local page = Page.new(self.pageContainer, self.theme, self.style, title)
+    local page = Page.new(self.pageContainer, self.theme, self.style, self, title)
     table.insert(self.pages, page)
     
     local button = Instance.new("TextButton")
@@ -1979,35 +2056,10 @@ function Window:SetTheme(presetName)
 end
 
 function Window:SetStyle(styleName)
-    if StylePresets[styleName] then
-        debugPrint("Changing style to:", styleName)
-        local oldStyle = self.style
-        self.style = deepCopy(StylePresets[styleName])
-        self.library.style = self.style
-        
-        if self.gui then
-            safeCall(function()
-                self.gui:Destroy()
-            end)
-        end
-        
-        local oldPages = {}
-        for i, page in ipairs(self.pages) do
-            table.insert(oldPages, {
-                title = page.title,
-                sections = page.sections
-            })
-        end
-        self.pages = {}
-        
-        self:Create()
-        
-        for _, pageData in ipairs(oldPages) do
-            local newPage = self:AddPage(pageData.title)
-            -- Note: Sections will need to be recreated by user
-        end
-        
-        debugPrint("Style changed successfully")
+    if StylePresets[styleName] and styleName ~= self.library.style then
+        debugPrint("Applying style:", styleName)
+        self.library.style = deepCopy(StylePresets[styleName])
+        self.library:SetStyle(styleName)
         return true
     end
     return false
@@ -2088,12 +2140,36 @@ end
 
 function HyperionUI:SetStyle(styleName)
     if StylePresets[styleName] then
+        debugPrint("Changing all windows to style:", styleName)
         self.style = deepCopy(StylePresets[styleName])
+        
+        -- Store all window data
+        local windowData = {}
         for _, window in ipairs(self.windows) do
-            safeCall(function()
-                window:SetStyle(styleName)
-            end)
+            local pages = {}
+            for _, page in ipairs(window.pages) do
+                table.insert(pages, page.title)
+            end
+            table.insert(windowData, {
+                title = window.title,
+                subtitle = window.subtitle,
+                pages = pages
+            })
+            window:Destroy()
         end
+        
+        -- Clear windows
+        self.windows = {}
+        
+        -- Recreate windows with new style
+        for _, data in ipairs(windowData) do
+            local newWindow = self:CreateWindow(data.title, data.subtitle)
+            for _, pageTitle in ipairs(data.pages) do
+                newWindow:AddPage(pageTitle)
+            end
+        end
+        
+        debugPrint("Style changed successfully - UI rebuilt")
         return true
     end
     return false
